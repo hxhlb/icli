@@ -76,8 +76,9 @@ jobs:
           tag = os.environ['RELEASE_TAG']
           notes = f'''Rootless and experimental RootHide DEBs contain the same signed arm64 executable.
 
-          - `svc list` and IcliSystem's `listServices` report each service's PID, running state and last exit status again. launchd's full list names these `pid` and `status`, not `PID` and `LastExitStatus` as in a one-label lookup, so 0.7.0 reported every service as stopped. The full list has no program path; `svc status <label>` reports it.
-          - Includes the 0.7.0 `notify post` and `notify get` commands (IcliKit `postDarwinNotification` and `darwinNotificationState`).
+          - `ui tree`, `ui at` and `screen describe` leave the system's accessibility switches as they found them. Reading an app's AX tree needs `_AXSApplicationAccessibilityEnabled` and `_AXSAutomationEnabled`, which are system-wide and persist across reboots; earlier versions turned them on and never turned them back off, so every process launched afterwards loaded the accessibility bundles. icli now reads their values first, turns on only what is missing, and restores them when it exits. A device that ran an earlier version keeps the switches on until it is rebooted once.
+          - `app frontmost` (IcliKit `frontmostBundleID`) falls back to RunningBoard's `UserInteractiveFocal` CPU role when exactly one app has it and no process holds a focal assertion. Setup Assistant drops its launch assertion and never takes a workspace focal one, so `ui tree` reported that the frontmost application could not be verified while it was on screen.
+          - Includes the 0.7.1 launchd service list fix and the 0.7.0 `notify post` and `notify get` commands (IcliKit `postDarwinNotification` and `darwinNotificationState`).
           - Dependencies stay minimum versions: libarchive.xcframework from 1.0.0 (the `ArchiveKit` product) and Swift Argument Parser from 1.3.1.
           - Swift Package library products: **IcliKit** and **IcliSystem**.
           - CI checks architecture, firmware-only package dependency, entitlements, system-linked libraries, package ownership, matching binaries, and absence of process-launch imports.

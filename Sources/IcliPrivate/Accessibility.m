@@ -3,6 +3,8 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
+#import <stdlib.h>
+#import <unistd.h>
 
 // AXRuntime numeric attributes: verified on the rootless TestHost and compared
 // with witchan/ios-mcp (8f46b68). String AX attributes are absent on this runtime.
@@ -12,16 +14,53 @@ static int (*copyAttribute)(AXElement, CFStringRef, CFTypeRef *);
 static int (*setTimeout)(AXElement, float);
 static Boolean (*getAXValue)(CFTypeRef, int, void *);
 static int (*hitTest)(AXElement, AXElement *, float, float);
+static Boolean (*applicationEnabled)(void);
+static void (*setApplicationEnabled)(Boolean);
+static Boolean (*automationEnabled)(void);
+static void (*setAutomationEnabled)(Boolean);
+
+// Both switches are system-wide and persist: every app launched while they are on
+// loads the accessibility bundles and reports automation. A query needs them, so
+// they go on before the first one and back to their old values when icli exits.
+// Per-process rather than per-query, because `ui wait` polls in a loop and
+// flipping a system-wide switch on every poll churns every app on the device.
+static BOOL turnedOnApplication;
+static BOOL turnedOnAutomation;
+
+static void restoreSwitches(void) {
+    if (turnedOnAutomation) setAutomationEnabled(false);
+    if (turnedOnApplication) setApplicationEnabled(false);
+    turnedOnAutomation = turnedOnApplication = NO;
+}
+
+// Answers YES when this call turned a switch on, so the caller knows the target
+// app is only now being told to load its accessibility bundles. A switch whose
+// current value cannot be read is left alone: turning one off at exit that the
+// device's owner had turned on, for VoiceOver say, would be worse than not
+// reading the tree.
+static BOOL enableSwitches(void) {
+    if (turnedOnApplication || turnedOnAutomation) return NO;
+    BOOL application = applicationEnabled && setApplicationEnabled && !applicationEnabled();
+    BOOL automation = automationEnabled && setAutomationEnabled && !automationEnabled();
+    if (!application && !automation) return NO;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ atexit(restoreSwitches); });
+    if (application) { setApplicationEnabled(true); turnedOnApplication = YES; }
+    if (automation) { setAutomationEnabled(true); turnedOnAutomation = YES; }
+    return YES;
+}
 
 static BOOL prepareAX(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         void *ax = dlopen("/System/Library/PrivateFrameworks/AXRuntime.framework/AXRuntime", RTLD_NOW);
         void *accessibility = dlopen("/usr/lib/libAccessibility.dylib", RTLD_NOW);
-        void (*enable)(BOOL) = accessibility ? dlsym(accessibility, "_AXSApplicationAccessibilitySetEnabled") : NULL;
-        void (*automation)(BOOL) = accessibility ? dlsym(accessibility, "_AXSSetAutomationEnabled") : NULL;
-        if (enable) enable(YES);
-        if (automation) automation(YES);
+        if (accessibility) {
+            applicationEnabled = dlsym(accessibility, "_AXSApplicationAccessibilityEnabled");
+            setApplicationEnabled = dlsym(accessibility, "_AXSApplicationAccessibilitySetEnabled");
+            automationEnabled = dlsym(accessibility, "_AXSAutomationEnabled");
+            setAutomationEnabled = dlsym(accessibility, "_AXSSetAutomationEnabled");
+        }
         if (!ax) return;
         void (*client)(uint32_t) = dlsym(ax, "__AXSetRequestingClient");
         if (client) client(2);
@@ -111,21 +150,19 @@ static NSDictionary *serializeElement(AXElement element, BOOL fixedSpace) {
     };
 }
 
-char *icli_ax_elements_json(int pid, int max_elements) {
-    if (pid <= 0 || max_elements < 1 || max_elements > 2000) return icli_json(@{@"error": @"invalid AX query"});
-    if (!prepareAX()) return icli_json(@{@"error": @"AX runtime unavailable"});
+static NSDictionary *elementsResult(int pid, int max_elements) {
     AXElement root = createApp(pid);
-    if (!root) return icli_json(@{@"error": @"AX application unavailable"});
+    if (!root) return @{@"error": @"AX application unavailable"};
     if (setTimeout) setTimeout(root, 0.5f);
     CFTypeRef value = NULL;
     int error = copyAttribute(root, (CFStringRef)(uintptr_t)3015, &value);
     CFRelease(root);
     if (error || !value || CFGetTypeID(value) != CFArrayGetTypeID()) {
         if (value) CFRelease(value);
-        return icli_json(@{
+        return @{
             @"error": [NSString stringWithFormat:@"AX element query failed (%d)", error],
             @"pid": @(pid)
-        });
+        };
     }
     NSArray *elements = CFBridgingRelease(value);
     NSMutableArray *rows = [NSMutableArray array];
@@ -140,19 +177,18 @@ char *icli_ax_elements_json(int pid, int max_elements) {
         NSDictionary *node = serializeElement((__bridge AXElement)element, fixedSpace);
         if (node) [rows addObject:node];
     }
-    return icli_json(@{
+    return @{
         @"source": @"ax",
         @"pid": @(pid),
         @"elements": rows,
         @"count": @(rows.count),
         @"truncated": @(truncated)
-    });
+    };
 }
 
-char *icli_ax_element_at_json(int pid, double x, double y) {
-    if (pid <= 0 || !prepareAX() || !hitTest) return icli_json(@{@"error": @"AX hit testing unavailable"});
+static NSDictionary *elementAtResult(int pid, double x, double y) {
     AXElement root = createApp(pid), hit = NULL;
-    if (!root) return icli_json(@{@"error": @"AX application unavailable"});
+    if (!root) return @{@"error": @"AX application unavailable"};
     if (setTimeout) setTimeout(root, 0.5f);
     double fx = x, fy = y;
     icli_screen_point_to_fixed(x, y, &fx, &fy);
@@ -160,9 +196,37 @@ char *icli_ax_element_at_json(int pid, double x, double y) {
     CFRelease(root);
     if (error) {
         if (hit) CFRelease(hit);
-        return icli_json(@{@"error": [NSString stringWithFormat:@"AX hit testing failed (%d)", error]});
+        return @{@"error": [NSString stringWithFormat:@"AX hit testing failed (%d)", error]};
     }
     NSDictionary *node = hit ? serializeElement(hit, framesInFixedSpace(pid)) : nil;
     if (hit) CFRelease(hit);
-    return icli_json(@{@"source": @"ax", @"element": node ?: @{}, @"x": @(x), @"y": @(y)});
+    return @{@"source": @"ax", @"element": node ?: @{}, @"x": @(x), @"y": @(y)};
+}
+
+// An app running while the switches were off loads its accessibility bundles only
+// once they turn on, so the query that turned them on can arrive before the app
+// answers. Only that first query waits and asks again.
+static const useconds_t kBundleLoadWait = 400000;
+
+char *icli_ax_elements_json(int pid, int max_elements) {
+    if (pid <= 0 || max_elements < 1 || max_elements > 2000) return icli_json(@{@"error": @"invalid AX query"});
+    if (!prepareAX()) return icli_json(@{@"error": @"AX runtime unavailable"});
+    BOOL enabled = enableSwitches();
+    NSDictionary *result = elementsResult(pid, max_elements);
+    if (enabled && [result[@"count"] unsignedIntegerValue] == 0) {
+        usleep(kBundleLoadWait);
+        result = elementsResult(pid, max_elements);
+    }
+    return icli_json(result);
+}
+
+char *icli_ax_element_at_json(int pid, double x, double y) {
+    if (pid <= 0 || !prepareAX() || !hitTest) return icli_json(@{@"error": @"AX hit testing unavailable"});
+    BOOL enabled = enableSwitches();
+    NSDictionary *result = elementAtResult(pid, x, y);
+    if (enabled && ((NSDictionary *)result[@"element"]).count == 0) {
+        usleep(kBundleLoadWait);
+        result = elementAtResult(pid, x, y);
+    }
+    return icli_json(result);
 }

@@ -33,6 +33,8 @@ Coordinates are UI points in the orientation shown on screen (see `icli screen i
 | `ui wait [<text>]` | Poll until the element appears | same selectors, `--timeout 10`, `--interval 0.3` | no | unlocked |
 | `ui wait-gone [<text>]` | Poll until the element disappears | same as `ui wait` | no | unlocked |
 
+Reading the AX tree needs the system's accessibility and automation switches, which are system-wide and persist. icli turns on whichever of the two is off before its first query and puts both back when the process exits, so the device is left as it was found. The query that turns them on waits once for the app to load its accessibility bundles, so it is slower than the ones after it. A device whose last icli run was 0.7.1 or earlier keeps the switches on until it reboots once.
+
 Selectors: `<text>` matches an element's label, identifier or value. Matching ignores case and defaults to `contains`. `--identifier` matches an exact identifier or label and takes precedence over `<text>`. One of the two is required. `ui tap` fails with exit 1 when nothing matches.
 
 ## input (to the focused text field)

@@ -999,9 +999,14 @@ bool icli_open_url(const char *url) {
 
 // The FrontBoard focal assertion identifies the app receiving input. The
 // older SpringBoard query may be stale even while another app is on screen.
+// Setup Assistant drops its launch assertion and never takes a workspace focal
+// one, yet RunningBoard keeps its role at UserInteractiveFocal, so the role
+// decides when no assertion does.
 static NSString *runningBoardFocalApplication(void) {
-    if (!dlopen("/System/Library/PrivateFrameworks/RunningBoardServices.framework/RunningBoardServices", RTLD_NOW))
-        return nil;
+    void *framework = dlopen("/System/Library/PrivateFrameworks/RunningBoardServices.framework/RunningBoardServices", RTLD_NOW);
+    if (!framework) return nil;
+    NSString *(*roleName)(uint8_t) = dlsym(framework, "NSStringFromRBSRole");
+    SEL roleSelector = NSSelectorFromString(@"cpuRole");
     Class handleClass = NSClassFromString(@"RBSProcessHandle");
     Class identifierClass = NSClassFromString(@"RBSProcessIdentifier");
     SEL identifierSelector = NSSelectorFromString(@"identifierWithPid:");
@@ -1023,6 +1028,7 @@ static NSString *runningBoardFocalApplication(void) {
     void *libproc = dlopen("/usr/lib/libproc.dylib", RTLD_NOW);
     int (*pidPath)(int, void *, uint32_t) = libproc ? dlsym(libproc, "proc_pidpath") : NULL;
     NSMutableSet<NSString *> *focalIDs = [NSMutableSet set];
+    NSMutableSet<NSString *> *focalRoleIDs = [NSMutableSet set];
     for (size_t i = 0; i < length / sizeof(struct kinfo_proc) && focalIDs.count < 2; i++) {
         pid_t pid = processes[i].kp_proc.p_pid;
         char path[4096] = {0};
@@ -1040,7 +1046,12 @@ static NSString *runningBoardFocalApplication(void) {
                 [bundleID containsString:@"WidgetRenderer"] || strstr(path, "WidgetRenderer")) {
                 continue;
             }
-            for (id assertion in [[handle valueForKey:@"currentState"] valueForKey:@"assertions"]) {
+            id state = [handle valueForKey:@"currentState"];
+            if (roleName && [state respondsToSelector:roleSelector]) {
+                uint8_t role = ((uint8_t (*)(id, SEL))objc_msgSend)(state, roleSelector);
+                if ([roleName(role) isEqualToString:@"UserInteractiveFocal"]) [focalRoleIDs addObject:bundleID];
+            }
+            for (id assertion in [state valueForKey:@"assertions"]) {
                 NSString *domain = [assertion valueForKey:@"domain"];
                 if ([domain isKindOfClass:[NSString class]] &&
                     ([domain containsString:@"Workspace-ForegroundFocal"] ||
@@ -1055,7 +1066,8 @@ static NSString *runningBoardFocalApplication(void) {
     }
     free(processes);
     if (libproc) dlclose(libproc);
-    return focalIDs.count == 1 ? focalIDs.anyObject : nil;
+    if (focalIDs.count == 1) return focalIDs.anyObject;
+    return focalIDs.count == 0 && focalRoleIDs.count == 1 ? focalRoleIDs.anyObject : nil;
 }
 
 char *icli_frontmost_bundle_id(void) {
