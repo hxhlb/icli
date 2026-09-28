@@ -48,3 +48,16 @@ Location notes:
 - `get` reads as a System Services location bundle, so it needs no permission prompt. `simulated` is CoreLocation's own flag for a software-simulated fix.
 - `fresh: false` means no new fix arrived within the timeout and the reading is locationd's last known location. `clear` waits until locationd stops refreshing the simulated fix, but until the next real fix `get` can still return the last simulated location with `fresh: false`.
 - A Wi-Fi-only iPad can reject real fixes for about 15 minutes after a simulated location far from the real one. To avoid that, run `location set` with the real coordinates (from `location get` before simulating), then `location clear`.
+
+## notify
+
+| Command | Purpose | Key flags | Root | Screen |
+| --- | --- | --- | --- | --- |
+| `notify post <name>` | Post a Darwin notification through notifyd, like `notifyutil -p`; `delivered` is whether notifyd delivered it back to icli's own listener | `--state <UInt64>` stores the state first, like `notifyutil -s` | for names notifyd reserves | any |
+| `notify get <name>` | A notification's state value, 0 when none was set or nothing holds the name | | no | any |
+
+Notify notes:
+
+- A post reaches every process observing that name, including system daemons. Post only names whose observers you understand.
+- notifyd keeps a name's state only while some process is registered for it. `notify post --state` registers only while it runs, so on a name nothing else observes, a later `notify get` reads 0. Names a daemon holds, such as `com.apple.springboard.lockstate`, keep their state.
+- notifyd can reserve names for root, such as those under `com.apple.system.`. A post it refuses fails with `unavailable`; on iOS 26 it can instead accept mobile's post and never deliver it, which shows as `delivered: false`. Retry either with `sudo`.

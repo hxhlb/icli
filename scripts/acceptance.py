@@ -861,6 +861,30 @@ def low_power_mode(d):
         assert d.cli('device', 'low-power', 'get')['enabled'] == original['enabled']
 
 
+@case('darwin_notifications', 'controls', ['notify post', 'notify get'])
+def darwin_notifications(d):
+    name = f'dev.owngoal.icli.acceptance.{os.getpid()}'
+    posted = d.cli('notify', 'post', name)
+    assert posted == {'name': name, 'posted': True, 'delivered': True}, posted
+    for value in [1, 2**64 - 1, 0]:
+        applied = d.cli('notify', 'post', name, '--state', str(value))
+        assert applied['delivered'] and applied['state'] == value, applied
+    # notifyd drops a name's state with its last registration, and nothing
+    # else observes this one, so the state is gone once the poster exits.
+    assert d.cli('notify', 'get', name) == {'name': name, 'state': 0}
+    # SpringBoard holds the lock state; the case runs unlocked.
+    assert d.cli('notify', 'get', 'com.apple.springboard.lockstate')['state'] == 0
+    # The argument parser rejects these before icli runs, so they print usage, not JSON.
+    for value in ['-1', str(2**64)]:
+        assert d.run([d.binary, 'notify', 'post', name, '--state', value]).returncode == 64
+    assert d.cli('notify', 'post', '', expected=1)['error'] == 'failed'
+    # notifyd may reserve com.apple.system. names for root: it refuses mobile's
+    # post, or (iOS 26) accepts it and never delivers it. Root always posts them.
+    system = d.cli('notify', 'post', 'com.apple.system.icli.acceptance', '--state', '1', expected=None)
+    assert system.get('error') == 'unavailable' or system['posted'], system
+    assert d.cli('notify', 'post', 'com.apple.system.icli.acceptance', sudo=True)['delivered']
+
+
 def redact(entries):
     """Keep the device's real location out of the saved report."""
     for entry in entries:

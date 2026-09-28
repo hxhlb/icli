@@ -30,7 +30,7 @@ iproxy 2333 22
 In another Mac terminal, upload the package from the repository directory and connect. Replace the version and account details as needed:
 
 ```sh
-scp -P 2333 .build/com.icli.icli_0.6.9_iphoneos-arm64.deb mobile@127.0.0.1:/tmp/icli.deb
+scp -P 2333 .build/com.icli.icli_0.7.0_iphoneos-arm64.deb mobile@127.0.0.1:/tmp/icli.deb
 ssh -p 2333 mobile@127.0.0.1
 ```
 
@@ -53,7 +53,7 @@ The DEB installs a command-line executable and license notices. The executable i
 - **Screenshots and OCR**: Save JPEG screenshots, return images as Base64, recognize text, or collect an image, OCR results, and accessibility elements together.
 - **Apps**: List, launch, inspect, register, unregister, and refresh apps; inspect or repair their network policy. Install and remove local DEB packages or compatible IPA files, in the bootstrap or in their own app container.
 - **Files and logs**: Read, write, copy, move, link, and remove files; change permissions and ownership; read and edit property lists; capture live logs and read crash reports.
-- **Device controls**: Adjust brightness, volume, and rotation; use hardware button actions and the clipboard, including images; switch Low Power Mode; read and enable Developer Mode; simulate a location; request userspace or full reboots; render boot logos.
+- **Device controls**: Adjust brightness, volume, and rotation; use hardware button actions and the clipboard, including images; switch Low Power Mode; post Darwin notifications and read their state; read and enable Developer Mode; simulate a location; request userspace or full reboots; render boot logos.
 - **System**: Manage launchd services, local DEB packages and repository source files, compare Debian and BaseBin versions, set account passwords through stdin, control system app visibility, restart SpringBoard, capture packets, store test credentials in the `icli.test` Keychain access group, and read protected Keychain database metadata with filesystem permission.
 - **Preferences**: Read, write, and delete typed preference values like `defaults`, for mobile, root, or a plist path.
 - **System state**: Dump every service with launchd's own description, and read the kernel's jetsam bands, jetsam property lists, and memory pressure levels.
@@ -187,13 +187,15 @@ icli location set 37.3349 -122.0090
 icli location get
 icli location clear
 icli device low-power set on
+icli notify post com.apple.springboard.lockcomplete
+icli notify get com.apple.springboard.lockstate
 icli device devmode get
 icli prefs read com.apple.springboard SBShowBatteryPercentage
 icli prefs write example.domain Enabled true --type bool
 icli prefs delete example.domain Enabled
 ```
 
-A simulated location applies to every app and stays on after icli exits, until `location clear`. `device devmode enable` asks the system to turn Developer Mode on after the next restart and does nothing when it is already on. `prefs` commands use mobile's preferences by default, including under `sudo`; `--user root`, `current` or `any` choose another set, and a `.plist` path works as a domain. Writes go through cfprefsd, so running apps see them.
+A simulated location applies to every app and stays on after icli exits, until `location clear`. `notify post` posts a Darwin notification to every observer, optionally storing a `--state` value first; names that notifyd reserves, such as those under `com.apple.system.`, need root. `device devmode enable` asks the system to turn Developer Mode on after the next restart and does nothing when it is already on. `prefs` commands use mobile's preferences by default, including under `sudo`; `--user root`, `current` or `any` choose another set, and a `.plist` path works as a domain. Writes go through cfprefsd, so running apps see them.
 
 ### Output and Device State
 

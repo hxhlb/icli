@@ -140,6 +140,12 @@ char *icli_amfi_developer_mode_json(bool arm);
 int icli_low_power_mode_get(void);
 /// 0 on acceptance; -1 if unavailable, -2 on timeout, -3 on rejection.
 int icli_low_power_mode_set(bool enabled);
+/// Posts a Darwin notification through notifyd, first setting its state when
+/// set_state is true. delivered reports whether this process's own listener
+/// received the post within a second. Returns a notify(3) status; 0 is success.
+uint32_t icli_notify_post(const char *name, bool set_state, uint64_t state, bool *delivered);
+/// A Darwin notification's current state. Returns a notify(3) status.
+uint32_t icli_notify_get_state(const char *name, uint64_t *state);
 /// Location simulation through locationd; the location outlives the process.
 char *icli_location_simulate_json(
     double latitude,

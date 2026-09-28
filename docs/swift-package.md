@@ -7,7 +7,7 @@ The package exports the `IcliKit` and `IcliSystem` libraries and the `icli` exec
 ```swift
 // Package.swift
 dependencies: [
-    .package(url: "https://github.com/owngoal-dev/icli.git", from: "0.6.9"),
+    .package(url: "https://github.com/owngoal-dev/icli.git", from: "0.7.0"),
 ],
 targets: [
     .target(
@@ -57,6 +57,7 @@ Every `icli` command is a thin layer over a public IcliKit function, so a long-r
 | Location | `simulateLocation(latitude:longitude:altitude:horizontalAccuracy:verticalAccuracy:speed:course:)`, `clearSimulatedLocation()`, `currentLocation(timeout:)`. The simulation stays on after the calling process exits. |
 | Developer Mode | `developerModeStatus()`, `enableDeveloperMode()`. Enabling only arms it for the next restart. |
 | Low Power Mode | `lowPowerMode()`, `setLowPowerMode(_:)` |
+| Darwin notifications | `postDarwinNotification(_:state:)`, `darwinNotificationState(_:)` |
 | Clipboard | `clipboardInfo(imageOutput:)`, `clipboardImagePNG()`, `setClipboardImage(_:)`, next to `clipboardText()` and `setClipboard(_:)` |
 | Preferences | `readPreference`, `writePreference` and `deletePreference`, with `PreferenceUser` and `PreferenceValue`. Build a `PreferenceValue` directly, or parse command-line text with `init(text:type:)`. |
 | Raw input | `touch(_:x:y:normalized:)`, `touchSequence(_:normalized:)` with `TouchEvent`, `hidEvent(page:usage:down:)`, `hidPress(page:usage:)`. `TouchPhase` is `down`, `move` or `up` (UITouchPhase 0, 1 and 3). |
