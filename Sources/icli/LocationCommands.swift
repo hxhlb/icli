@@ -6,13 +6,13 @@ struct Location: ParsableCommand {
     static var configuration = CommandConfiguration(
         abstract: "Simulate the device location or read the current one",
         discussion: "A simulated location applies to every app and stays on after icli exits, until 'icli location clear'.",
-        subcommands: [Set.self, Clear.self, Get.self]
+        subcommands: [Set.self, Clear.self, Get.self],
     )
 
     struct Set: ParsableCommand {
         static var configuration = CommandConfiguration(
             abstract: "Simulate a fixed location and confirm locationd reports it",
-            discussion: "Negative coordinates work as they are: icli location set -33.8688 151.2093. Give a negative altitude as --altitude=-10."
+            discussion: "Negative coordinates work as they are: icli location set -33.8688 151.2093. Give a negative altitude as --altitude=-10.",
         )
         @OptionGroup var output: OutputOptions
         // Captures values such as -33.8688 that would otherwise parse as
@@ -21,8 +21,8 @@ struct Location: ParsableCommand {
             parsing: .allUnrecognized,
             help: ArgumentHelp(
                 "Latitude (-90 to 90) and longitude (-180 to 180) in degrees.",
-                valueName: "latitude longitude"
-            )
+                valueName: "latitude longitude",
+            ),
         )
         var coordinate: [String]
         @Option(help: "Altitude in metres.") var altitude: Double = 0
@@ -49,7 +49,7 @@ struct Location: ParsableCommand {
                     horizontalAccuracy: horizontalAccuracy,
                     verticalAccuracy: verticalAccuracy,
                     speed: speed,
-                    course: course
+                    course: course,
                 )
             }
         }
@@ -66,7 +66,7 @@ struct Location: ParsableCommand {
     struct Get: ParsableCommand {
         static var configuration = CommandConfiguration(
             abstract: "The location CoreLocation reports to a client",
-            discussion: "'fresh' is false when no new fix arrived within the timeout and the reading is locationd's last known location. 'simulated' is CoreLocation's own flag for a software-simulated fix."
+            discussion: "'fresh' is false when no new fix arrived within the timeout and the reading is locationd's last known location. 'simulated' is CoreLocation's own flag for a software-simulated fix.",
         )
         @OptionGroup var output: OutputOptions
         @Option(help: "Seconds to wait for a fresh fix.") var timeout: Double = 10

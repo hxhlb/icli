@@ -40,7 +40,7 @@ public enum Envelope {
         }
         let data = (try? JSONSerialization.data(
             withJSONObject: payload,
-            options: [.prettyPrinted, .sortedKeys]
+            options: [.prettyPrinted, .sortedKeys],
         )) ?? Data("{\"error\":\"failed\",\"message\":\"unencodable\"}".utf8)
         FileHandle.standardOutput.write(data)
         FileHandle.standardOutput.write(Data("\n".utf8))

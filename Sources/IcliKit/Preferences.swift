@@ -119,7 +119,7 @@ public func writePreference(
     key: String,
     value: PreferenceValue,
     user: PreferenceUser = .mobile,
-    notify: String? = nil
+    notify: String? = nil,
 ) throws -> [String: Any] {
     let domain = try checkedDomain(domain)
     try checkedKey(key)
@@ -148,7 +148,7 @@ public func deletePreference(
     domain: String,
     key: String,
     user: PreferenceUser = .mobile,
-    notify: String? = nil
+    notify: String? = nil,
 ) throws -> [String: Any] {
     let domain = try checkedDomain(domain)
     try checkedKey(key)
@@ -164,7 +164,7 @@ public func deletePreference(
         "key": key,
         "user": user.rawValue,
         "removed": existed,
-        "exists": false
+        "exists": false,
     ]
     if let notify {
         result["notified"] = notify
@@ -198,7 +198,7 @@ private func postNotification(_ name: String?) {
         CFNotificationName(name as CFString),
         nil,
         nil,
-        true
+        true,
     )
 }
 

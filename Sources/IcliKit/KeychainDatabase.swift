@@ -27,7 +27,9 @@ public func listKeychainDatabaseMetadata(className: String? = nil) throws -> [St
     let openStatus = sqlite3_open_v2(path, &database, SQLITE_OPEN_READONLY, nil)
     guard openStatus == SQLITE_OK, let database else {
         let message = database.map { String(cString: sqlite3_errmsg($0)) } ?? "SQLite status \(openStatus)"
-        if let database { sqlite3_close(database) }
+        if let database {
+            sqlite3_close(database)
+        }
         throw IcliError.failed("cannot read keychain database: \(message)")
     }
     defer { sqlite3_close(database) }
@@ -39,9 +41,12 @@ public func listKeychainDatabaseMetadata(className: String? = nil) throws -> [St
         let sql = "SELECT \(table.columns) FROM \(table.name)"
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK,
-              let statement else {
+              let statement
+        else {
             let message = String(cString: sqlite3_errmsg(database))
-            if let statement { sqlite3_finalize(statement) }
+            if let statement {
+                sqlite3_finalize(statement)
+            }
             throw IcliError.failed("cannot query keychain \(table.name): \(message)")
         }
         defer { sqlite3_finalize(statement) }
@@ -49,7 +54,9 @@ public func listKeychainDatabaseMetadata(className: String? = nil) throws -> [St
         var count = 0
         while true {
             let step = sqlite3_step(statement)
-            if step == SQLITE_DONE { break }
+            if step == SQLITE_DONE {
+                break
+            }
             guard step == SQLITE_ROW else {
                 throw IcliError.failed("cannot read keychain \(table.name): \(String(cString: sqlite3_errmsg(database)))")
             }
@@ -99,7 +106,7 @@ private func putText(
     _ key: String,
     from statement: OpaquePointer,
     at column: inout Int32,
-    into item: inout [String: Any]
+    into item: inout [String: Any],
 ) {
     defer { column += 1 }
     // A BLOB in an attribute column may itself be encrypted. Never decode it
@@ -108,5 +115,7 @@ private func putText(
           let bytes = sqlite3_column_text(statement, column) else { return }
     let length = Int(sqlite3_column_bytes(statement, column))
     let value = String(decoding: UnsafeBufferPointer(start: bytes, count: length), as: UTF8.self)
-    if !value.isEmpty { item[key] = value }
+    if !value.isEmpty {
+        item[key] = value
+    }
 }

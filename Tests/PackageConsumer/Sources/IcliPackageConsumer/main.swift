@@ -65,6 +65,7 @@ do {
 } catch {
     rejectsNonPropertyList = true
 }
+
 precondition(rejectsNonPropertyList)
 let report: [String: Any] = [
     "library": "IcliKit",

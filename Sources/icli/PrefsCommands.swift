@@ -6,7 +6,7 @@ struct Prefs: ParsableCommand {
     static var configuration = CommandConfiguration(
         abstract: "Read and change preference domains through cfprefsd, like defaults.",
         discussion: "<domain> is a domain such as com.apple.springboard or an absolute path to a .plist file. --user defaults to mobile, even under sudo.",
-        subcommands: [Read.self, Write.self, Delete.self]
+        subcommands: [Read.self, Write.self, Delete.self],
     )
 }
 
@@ -26,7 +26,7 @@ private let notifyHelp: ArgumentHelp = "Darwin notification to post after the ch
 extension Prefs {
     struct Read: ParsableCommand {
         static var configuration = CommandConfiguration(
-            abstract: "One key with its type, or the whole domain as {key: {value, type}}"
+            abstract: "One key with its type, or the whole domain as {key: {value, type}}",
         )
         @OptionGroup var output: OutputOptions
         @OptionGroup var user: PreferenceUserOption
@@ -47,7 +47,7 @@ extension Prefs {
         @Argument var key: String
         @Argument var value: String
         @Option(
-            help: "string, int, float, bool, date (ISO-8601 or epoch seconds), data (Base64) or json (array or object)."
+            help: "string, int, float, bool, date (ISO-8601 or epoch seconds), data (Base64) or json (array or object).",
         )
         var type: String = "string"
         @Option(help: notifyHelp) var notify: String?
@@ -58,7 +58,7 @@ extension Prefs {
                     key: key,
                     value: PreferenceValue(text: value, type: type),
                     user: user.parsed(),
-                    notify: notify
+                    notify: notify,
                 )
             }
         }

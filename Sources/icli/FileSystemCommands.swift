@@ -5,7 +5,7 @@ import IcliKit
 struct FS: ParsableCommand {
     static var configuration = CommandConfiguration(
         abstract: "Filesystem",
-        subcommands: [Ls.self, Read.self, Write.self, Find.self, Plist.self, PlistSet.self, Mkdir.self, Rm.self, Link.self, Chmod.self, Chown.self, Copy.self, Move.self]
+        subcommands: [Ls.self, Read.self, Write.self, Find.self, Plist.self, PlistSet.self, Mkdir.self, Rm.self, Link.self, Chmod.self, Chown.self, Copy.self, Move.self],
     )
 }
 
@@ -13,7 +13,7 @@ extension FS {
     struct PlistSet: ParsableCommand {
         static var configuration = CommandConfiguration(
             commandName: "plist-set",
-            abstract: "Set (JSON value) or remove (--remove) one top-level plist key"
+            abstract: "Set (JSON value) or remove (--remove) one top-level plist key",
         )
         @OptionGroup var output: OutputOptions
         @Argument var path: String
@@ -49,7 +49,7 @@ extension FS {
 
     struct Link: ParsableCommand {
         static var configuration = CommandConfiguration(
-            abstract: "Create a symbolic link at <link> pointing to <target>"
+            abstract: "Create a symbolic link at <link> pointing to <target>",
         )
         @OptionGroup var output: OutputOptions
         @Argument var target: String

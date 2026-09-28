@@ -34,7 +34,7 @@ func stageIPA(_ path: String) throws -> StagedIPA {
     try manager.createDirectory(
         atPath: stage,
         withIntermediateDirectories: true,
-        attributes: [.posixPermissions: 0o700]
+        attributes: [.posixPermissions: 0o700],
     )
     do {
         _ = try decodeBridgeJSON(takeCString(icli_extract_ipa_json(path, stage)), "IPA extraction response")
@@ -91,11 +91,11 @@ func installIPA(_ path: String) throws -> [String: Any] {
     }
     try manager.createDirectory(
         atPath: (receipt as NSString).deletingLastPathComponent,
-        withIntermediateDirectories: true
+        withIntermediateDirectories: true,
     )
     try manager.createDirectory(
         atPath: (target as NSString).deletingLastPathComponent,
-        withIntermediateDirectories: true
+        withIntermediateDirectories: true,
     )
     let backup = stage + "/previous.app"
     if upgrading {

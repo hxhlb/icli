@@ -25,11 +25,11 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("Foundation"),
                 .linkedFramework("CoreFoundation"),
-            ]
+            ],
         ),
         .target(
             name: "IcliSystem",
-            dependencies: ["IcliSystemPrivate"]
+            dependencies: ["IcliSystemPrivate"],
         ),
         .target(
             name: "IcliPrivate",
@@ -48,12 +48,12 @@ let package = Package(
                 .linkedFramework("CoreFoundation"),
                 .linkedFramework("AVFoundation"),
                 .linkedFramework("CoreLocation"),
-            ]
+            ],
         ),
         .target(
             name: "IcliKit",
             dependencies: ["IcliPrivate", "IcliSystem"],
-            linkerSettings: [.linkedLibrary("sqlite3")]
+            linkerSettings: [.linkedLibrary("sqlite3")],
         ),
         .executableTarget(
             name: "icli",
@@ -68,7 +68,7 @@ let package = Package(
                     "-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist",
                     "-Xlinker", repositoryDirectory.appendingPathComponent("Resources/Info.plist").path,
                 ]),
-            ]
+            ],
         ),
-    ]
+    ],
 )

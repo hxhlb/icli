@@ -36,7 +36,7 @@ public func extractDeb(_ path: String, to destination: String) throws -> [String
     try FileManager.default.createDirectory(
         atPath: destination,
         withIntermediateDirectories: true,
-        attributes: [.posixPermissions: 0o755]
+        attributes: [.posixPermissions: 0o755],
     )
     var result = try decodeBridgeJSON(takeCString(icli_deb_read_json(path, destination)), "package response")
     result.removeValue(forKey: "control_texts")
@@ -52,7 +52,7 @@ public func compareDebianVersions(_ left: String, _ right: String) throws -> [St
         "left": left,
         "right": right,
         "comparison": Int(comparison),
-        "relation": comparison < 0 ? "lt" : comparison > 0 ? "gt" : "eq"
+        "relation": comparison < 0 ? "lt" : comparison > 0 ? "gt" : "eq",
     ]
 }
 
@@ -89,7 +89,7 @@ private struct Stanza {
     static let preferredOrder = [
         "Package", "Status", "Priority", "Section", "Installed-Size", "Maintainer", "Architecture", "Multi-Arch",
         "Source", "Version", "Replaces", "Provides", "Depends", "Pre-Depends", "Recommends", "Suggests", "Breaks",
-        "Conflicts", "Conffiles", "Description"
+        "Conflicts", "Conffiles", "Description",
     ]
 
     /// dpkg's field order: the well-known fields first, then everything else as it appeared.
@@ -306,7 +306,7 @@ public func listPackages(filter: String?) throws -> [String: Any] {
             "version": stanza.fields["Version"] ?? "",
             "architecture": stanza.fields["Architecture"] ?? "",
             "section": stanza.fields["Section"] ?? "",
-            "status": stanza.fields["Status"] ?? ""
+            "status": stanza.fields["Status"] ?? "",
         ]
         if let filter, !(row["package"] as! String).localizedCaseInsensitiveContains(filter),
            !(row["name"] as! String).localizedCaseInsensitiveContains(filter)
@@ -331,7 +331,7 @@ public func packageStatus(_ name: String) throws -> [String: Any] {
         "version": stanza.fields["Version"] ?? "",
         "architecture": stanza.fields["Architecture"] ?? "",
         "fields": stanza.fields,
-        "files": fileList(database, name)
+        "files": fileList(database, name),
     ]
 }
 
@@ -366,7 +366,7 @@ public func installDebFile(_ path: String, ignoreDependencies: Bool = false) thr
             "package": name,
             "error": "unmet_dependencies",
             "message": "dependencies not installed: " + unmet.joined(separator: ", "),
-            "unmet": unmet
+            "unmet": unmet,
         ])
     }
     let previous = database.stanza(name)
@@ -380,7 +380,7 @@ public func installDebFile(_ path: String, ignoreDependencies: Bool = false) thr
         keepPointers.withUnsafeMutableBufferPointer { buffer in
             takeCString(icli_deb_unpack_json(path, installPrefix, buffer.baseAddress, Int32(buffer.count)))
         },
-        "package response"
+        "package response",
     )
     let installed = unpacked["installed"] as? [String] ?? []
 
@@ -465,7 +465,7 @@ public func installDebFile(_ path: String, ignoreDependencies: Bool = false) thr
         "scripts_not_run": scripts.sorted(),
         "registered_apps": registered,
         "unmet_dependencies": unmet,
-        "completion": scripts.isEmpty && registrationFailed.isEmpty ? "complete" : "partial"
+        "completion": scripts.isEmpty && registrationFailed.isEmpty ? "complete" : "partial",
     ]
     if !registrationFailed.isEmpty {
         payload["registration_failed"] = registrationFailed
@@ -502,7 +502,7 @@ public func removeDeb(_ name: String, purge: Bool = false) throws -> [String: An
             "package": name,
             "error": "remove_failed",
             "message": "could not delete \(failed.count) file(s)",
-            "failed": failed
+            "failed": failed,
         ])
     }
     let infoDirectory = database.directory + "/info/"
@@ -539,6 +539,6 @@ public func removeDeb(_ name: String, purge: Bool = false) throws -> [String: An
         "kept_conffiles": conffiles,
         "unregistered_apps": unregistered,
         "scripts_not_run": scripts,
-        "completion": scripts.isEmpty ? "complete" : "partial"
+        "completion": scripts.isEmpty ? "complete" : "partial",
     ]
 }

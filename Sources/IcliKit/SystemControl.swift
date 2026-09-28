@@ -29,13 +29,13 @@ public func renderBootLogo(
     dark: Bool,
     width: Int,
     height: Int,
-    markPoints: Double
+    markPoints: Double,
 ) throws -> [String: Any] {
     guard FileManager.default.fileExists(atPath: mark) else { throw IcliError.failed("mark image not found: \(mark)") }
     guard width >= 0, height >= 0, markPoints >= 0 else { throw IcliError.failed("sizes must not be negative") }
     return try decodeBridgeJSON(
         takeCString(icli_bootlogo_render_json(mark, output, dark, Int32(width), Int32(height), markPoints)),
-        "response"
+        "response",
     )
 }
 
@@ -51,7 +51,7 @@ public func setAccountPassword(user: String, password: String) throws -> [String
     guard geteuid() == 0 else { throw IcliError.failed("changing an account password requires root") }
     return try decodeBridgeJSON(
         takeCString(icli_account_set_password_json(JailbreakRoot.current.jbrootPath("/etc"), user, password)),
-        "response"
+        "response",
     )
 }
 
@@ -81,7 +81,7 @@ public func environmentReport() throws -> [String: Any] {
         ".installed_palera1n",
         ".procursus_strapped",
         "basebin/.version",
-        "basebin/.safe_mode"
+        "basebin/.safe_mode",
     ].filter(present)
     let basebinVersion = (try? String(contentsOfFile: root.jbrootPath("/basebin/.version"), encoding: .utf8))?
         .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -119,7 +119,7 @@ public func environmentReport() throws -> [String: Any] {
             "low power mode",
             "developer mode",
             "preferences",
-            "container app installation"
+            "container app installation",
         ],
         "maintainer_scripts": "never executed; reported per transaction",
         "executable": Bundle.main.executablePath ?? "",
@@ -135,7 +135,7 @@ public func compareBaseBin(bundled archive: String?) throws -> [String: Any] {
     var payload: [String: Any] = [
         "installed_path": installedPath,
         "installed": installed ?? "",
-        "installed_present": installed != nil
+        "installed_present": installed != nil,
     ]
     if let archive {
         guard FileManager.default.fileExists(atPath: archive) else {

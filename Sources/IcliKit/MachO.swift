@@ -71,7 +71,7 @@ func machOInfo(at path: String) throws -> [String: Any] {
                     }
                     entitlements = try PropertyListSerialization.propertyList(
                         from: data.subdata(in: blob + 8 ..< blob + size),
-                        format: nil
+                        format: nil,
                     ) as? [String: Any] ?? [:]
                 }
             }

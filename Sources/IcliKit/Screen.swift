@@ -7,17 +7,21 @@ import Vision
 public func takeScreenshot(
     path requestedPath: String? = nil,
     base64: Bool = false,
-    nativeResolution: Bool = false
+    nativeResolution: Bool = false,
 ) throws -> [String: Any] {
     icli_private_init()
     let path = requestedPath ?? (JailbreakRoot.current.scratchDirectory() + "/icli-\(UUID().uuidString).jpg")
-    guard icli_screenshot_jpeg(path, 0.8, 800_000, nativeResolution) else {
-        throw IcliError.failed("screenshot failed")
-    }
+    // A path icli chose itself is of no use to the caller until it is reported
+    // back, so it is removed when the caller wanted base64 instead and when the
+    // call fails after the capture. A path the caller named is left to them.
+    var reported = false
     defer {
-        if base64, requestedPath == nil {
+        if requestedPath == nil, !reported {
             try? FileManager.default.removeItem(atPath: path)
         }
+    }
+    guard icli_screenshot_jpeg(path, 0.8, 800_000, nativeResolution) else {
+        throw IcliError.failed("screenshot failed")
     }
     let data = try Data(contentsOf: URL(fileURLWithPath: path))
     guard let image = UIImage(data: data)?.cgImage else { throw IcliError.failed("screenshot is not a valid image") }
@@ -29,6 +33,7 @@ public func takeScreenshot(
     }
     if !base64 || requestedPath != nil {
         result["path"] = path
+        reported = true
     }
     return result
 }
@@ -59,7 +64,7 @@ public func swipe(
     x2: Double,
     y2: Double,
     seconds: Double,
-    steps: Int = 20
+    steps: Int = 20,
 ) throws -> [String: Any] {
     try validatePoint(x1, y1)
     try validatePoint(x2, y2)
@@ -73,7 +78,7 @@ public func drag(
     points: [(Double, Double)],
     seconds: Double,
     hold: Double = 0.5,
-    steps: Int = 20
+    steps: Int = 20,
 ) throws -> [String: Any] {
     guard (2 ... 1000).contains(points.count), (points.count - 1 ... 2000).contains(steps) else {
         throw IcliError.failed("drag needs 2–1000 points and steps >= segments, up to 2000")
@@ -123,7 +128,7 @@ public func pressKey(_ name: String) throws -> [String: Any] {
                                   "right": 0x4F, "home": 0x4A, "end": 0x4D, "pageup": 0x4B, "pagedown": 0x4E]
     let parts = name.lowercased().split(separator: "+").map(String.init)
     let modifierKeys: [String: UInt16] = [
-        "cmd": 0xE3, "command": 0xE3, "ctrl": 0xE0, "control": 0xE0, "shift": 0xE1, "alt": 0xE2, "option": 0xE2
+        "cmd": 0xE3, "command": 0xE3, "ctrl": 0xE0, "control": 0xE0, "shift": 0xE1, "alt": 0xE2, "option": 0xE2,
     ]
     var modifiers: [UInt16] = []
     for part in parts.dropLast() {
@@ -164,8 +169,8 @@ public func recognizeScreen(languages: [String], minConfidence: Float) throws ->
         throw IcliError.failed("provide languages and confidence between 0 and 1")
     }
     let path = JailbreakRoot.current.scratchDirectory() + "/icli-ocr-\(UUID().uuidString).jpg"
-    guard icli_screenshot_jpeg(path, 0.9, 0, true) else { throw IcliError.failed("OCR screenshot failed") }
     defer { try? FileManager.default.removeItem(atPath: path) }
+    guard icli_screenshot_jpeg(path, 0.9, 0, true) else { throw IcliError.failed("OCR screenshot failed") }
     return try recognizeImage(path: path, languages: languages, minConfidence: minConfidence)
 }
 
@@ -179,7 +184,7 @@ private func recognizeImage(path: String, languages: [String], minConfidence: Fl
             in: downsampledCGImage(image, maxEdge: 1600) ?? cgImage,
             languages: languages,
             minConfidence: minConfidence,
-            pointSize: pointSize
+            pointSize: pointSize,
         )
         return ["blocks": blocks, "count": blocks.count, "engine": "vision"]
     } catch {
@@ -191,14 +196,14 @@ public func uiElements(
     maxElements: Int = 250,
     visibleOnly: Bool = true,
     clickableOnly: Bool = false,
-    limit: Int? = nil
+    limit: Int? = nil,
 ) throws -> [String: Any] {
     guard (1 ... 2000).contains(maxElements), limit == nil || (limit! > 0 && limit! <= 2000) else {
         throw IcliError.failed("element limits must be between 1 and 2000")
     }
     var result = try decodeBridgeJSON(
         takeCString(icli_ax_elements_json(frontmostPID(), Int32(maxElements))),
-        "AX response"
+        "AX response",
     )
     var elements = result["elements"] as? [[String: Any]] ?? []
     if visibleOnly {
@@ -218,12 +223,12 @@ public func uiElements(
 public func describeScreen() throws -> [String: Any] {
     let frontmost = frontmostApp()
     let path = JailbreakRoot.current.scratchDirectory() + "/icli-describe-\(UUID().uuidString).jpg"
+    defer { try? FileManager.default.removeItem(atPath: path) }
     guard icli_screenshot_jpeg(path, 0.9, 0, true), let image = UIImage(contentsOfFile: path),
           let original = image.cgImage
     else {
         throw IcliError.failed("screen capture failed")
     }
-    defer { try? FileManager.default.removeItem(atPath: path) }
     let pointSize = pointSizeMatching(image: original)
     let format = UIGraphicsImageRendererFormat()
     format.scale = 1
@@ -243,8 +248,8 @@ public func describeScreen() throws -> [String: Any] {
             "width": pointSize.width,
             "height": pointSize.height,
             "coordinate_scale": 1,
-            "bytes": jpeg.count
-        ]
+            "bytes": jpeg.count,
+        ],
     ]
     do { payload["elements"] = try uiElements() }
     catch { payload["elements"] = ["error": error.localizedDescription] }
@@ -275,7 +280,7 @@ public struct ElementSelector {
         identifier: String? = nil,
         role: String? = nil,
         match: String = "contains",
-        index: Int = 0
+        index: Int = 0,
     ) throws {
         guard text?.isEmpty == false || identifier?.isEmpty == false, ["contains", "exact"].contains(match),
               index >= 0
@@ -331,7 +336,7 @@ public func waitForElement(
     _ selector: ElementSelector,
     appear: Bool,
     timeout: TimeInterval,
-    interval: TimeInterval = 0.3
+    interval: TimeInterval = 0.3,
 ) throws -> [String: Any] {
     guard timeout.isFinite, (0 ... 60).contains(timeout), interval.isFinite, (0.1 ... 5).contains(interval) else {
         throw IcliError.failed("timeout must be 0–60 seconds and interval 0.1–5 seconds")
@@ -345,7 +350,7 @@ public func waitForElement(
                 "found": present,
                 "disappeared": !present,
                 "waited_ms": Int((ProcessInfo.processInfo.systemUptime - start) * 1000),
-                "element": present ? hits[selector.index] : [:]
+                "element": present ? hits[selector.index] : [:],
             ]
         }
         let remaining = timeout - (ProcessInfo.processInfo.systemUptime - start)
@@ -368,7 +373,7 @@ private func visionBlocks(
     in image: CGImage,
     languages: [String],
     minConfidence: Float,
-    pointSize: CGSize
+    pointSize: CGSize,
 ) throws -> [[String: Any]] {
     let request = VNRecognizeTextRequest()
     request.recognitionLevel = .accurate

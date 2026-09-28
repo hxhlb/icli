@@ -159,7 +159,7 @@ public func networkInfo() -> [String: Any] {
                 socklen_t(host.count),
                 nil,
                 0,
-                NI_NUMERICHOST
+                NI_NUMERICHOST,
             )
             let name = String(cString: iface.pointee.ifa_name)
             let ip = String(cString: host)

@@ -100,7 +100,7 @@ private func isMachO(_ path: String) -> Bool {
     let magic = handle.readData(ofLength: 4)
     return magic.count == 4
         && [0xFEED_FACF, 0xCFFA_EDFE, 0xCAFE_BABE, 0xBEBA_FECA]
-            .contains(magic.withUnsafeBytes { $0.load(as: UInt32.self) })
+        .contains(magic.withUnsafeBytes { $0.load(as: UInt32.self) })
 }
 
 /// The part of a LaunchServices registration an app and its plug-ins share,
@@ -111,7 +111,7 @@ private func registrationRecord(
     bundleID: String,
     executable: String,
     dataKind: String,
-    created: inout [CreatedContainer]
+    created: inout [CreatedContainer],
 ) throws -> [String: Any] {
     let entitlements = try machOInfo(at: executable)["entitlements"] as? [String: Any] ?? [:]
     let containerized = entitlements["com.apple.private.security.no-container"] as? Bool != true
@@ -132,7 +132,7 @@ private func registrationRecord(
         "EnvironmentVariables": [
             "CFFIXED_USER_HOME": home,
             "HOME": home,
-            "TMPDIR": containerized ? dataPath + "/tmp" : "/var/tmp"
+            "TMPDIR": containerized ? dataPath + "/tmp" : "/var/tmp",
         ],
         "Entitlements": entitlements,
         "SignerOrganization": "Apple Inc.",
@@ -170,13 +170,13 @@ private func registerContainerApp(
     executable: String,
     plugIns: [PlugIn],
     registration: AppRegistrationType,
-    created: inout [CreatedContainer]
+    created: inout [CreatedContainer],
 ) throws -> [String: Any] {
     var record = try registrationRecord(
         bundleID: bundleID,
         executable: app + "/" + executable,
         dataKind: "data",
-        created: &created
+        created: &created,
     )
     record["ApplicationType"] = registration == .system ? "System" : "User"
     record["Path"] = app
@@ -193,7 +193,7 @@ private func registerContainerApp(
             bundleID: plugIn.bundleID,
             executable: plugIn.path + "/" + plugIn.executable,
             dataKind: "plugin",
-            created: &created
+            created: &created,
         )
         plugInRecord["ApplicationType"] = "PluginKitPlugin"
         plugInRecord["Path"] = plugIn.path
@@ -230,7 +230,7 @@ public func installIPAInContainer(_ path: String, registration: AppRegistrationT
 public func installIPAInContainer(
     _ path: String,
     registration: AppRegistrationType,
-    prepareApp: (String) throws -> Void
+    prepareApp: (String) throws -> Void,
 ) throws -> [String: Any] {
     guard geteuid() == 0 else {
         throw IcliError.failed("container installation requires root; run sudo icli app install <file.ipa> --container")
@@ -290,7 +290,7 @@ public func installIPAInContainer(
             executable: staged.executable,
             plugIns: plugIns,
             registration: registration,
-            created: &created
+            created: &created,
         )
         try? manager.removeItem(atPath: backup)
         return [
@@ -320,7 +320,7 @@ public func installIPAInContainer(
                 executable: executable,
                 plugIns: (try? appPlugIns(of: previous, owner: bundleID)) ?? [],
                 registration: previousType == "System" ? .system : .user,
-                created: &ignored
+                created: &ignored,
             )
         }
         if !markerExisted {

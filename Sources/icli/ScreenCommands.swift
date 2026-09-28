@@ -5,7 +5,7 @@ import IcliKit
 struct Screen: ParsableCommand {
     static var configuration = CommandConfiguration(
         abstract: "Touch, screenshot, OCR",
-        subcommands: [Tap.self, Swipe.self, LongPress.self, DoubleTap.self, Drag.self, Touch.self, TouchSequence.self, Shot.self, Info.self, OCR.self, Describe.self]
+        subcommands: [Tap.self, Swipe.self, LongPress.self, DoubleTap.self, Drag.self, Touch.self, TouchSequence.self, Shot.self, Info.self, OCR.self, Describe.self],
     )
 }
 
@@ -64,7 +64,7 @@ extension Screen {
         @Option var toX: Double?
         @Option var toY: Double?
         @Option(
-            help: "Drag path as a JSON array of {x,y} points; use this option or all four endpoint options, not both."
+            help: "Drag path as a JSON array of {x,y} points; use this option or all four endpoint options, not both.",
         )
         var points: String?
         @Option var seconds: Double = 0.3
@@ -117,7 +117,7 @@ extension Screen {
     struct TouchSequence: ParsableCommand {
         static var configuration = CommandConfiguration(
             commandName: "touch-sequence",
-            abstract: "Send several digitizer events from one process."
+            abstract: "Send several digitizer events from one process.",
         )
         @OptionGroup var output: OutputOptions
         @Option(help: "JSON array of {phase,x,y,delay_ms}; delay_ms is the pause after that event.") var events: String
@@ -168,7 +168,7 @@ extension Screen {
 struct Button: ParsableCommand {
     static var configuration = CommandConfiguration(
         abstract: "Hardware buttons",
-        subcommands: [Home.self, Power.self, VolumeUp.self, VolumeDown.self, Mute.self, Wake.self]
+        subcommands: [Home.self, Power.self, VolumeUp.self, VolumeDown.self, Mute.self, Wake.self],
     )
 }
 
@@ -221,7 +221,7 @@ extension Button {
 struct Input: ParsableCommand {
     static var configuration = CommandConfiguration(
         abstract: "Text and raw key input",
-        subcommands: [Paste.self, TypeText.self, Key.self, HID.self]
+        subcommands: [Paste.self, TypeText.self, Key.self, HID.self],
     )
 }
 
@@ -254,7 +254,7 @@ extension Input {
 
     struct HID: ParsableCommand {
         static var configuration = CommandConfiguration(
-            abstract: "Send a raw HID usage: a press, or only the key going down or up."
+            abstract: "Send a raw HID usage: a press, or only the key going down or up.",
         )
         @OptionGroup var output: OutputOptions
         @Argument(help: "Usage page, decimal or 0x hex: 7 keyboard, 12 (0x0C) consumer.") var page: String
@@ -277,13 +277,13 @@ extension Input {
 struct UI: ParsableCommand {
     static var configuration = CommandConfiguration(
         abstract: "Accessibility / OCR elements",
-        subcommands: [Tree.self, At.self, Tap.self, Wait.self, WaitGone.self]
+        subcommands: [Tree.self, At.self, Tap.self, Wait.self, WaitGone.self],
     )
 }
 
 struct ElementOptions: ParsableArguments {
     @Argument(
-        help: "Text to match in an element's label, identifier, or value; required unless --identifier is supplied."
+        help: "Text to match in an element's label, identifier, or value; required unless --identifier is supplied.",
     )
     var text: String?
     @Option(help: "Match an exact element identifier or label; takes precedence over the text argument.")
@@ -309,7 +309,7 @@ extension UI {
                     maxElements: maxElements,
                     visibleOnly: !includeOffscreen,
                     clickableOnly: clickableOnly,
-                    limit: limit
+                    limit: limit,
                 )
             }
         }

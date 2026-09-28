@@ -4,7 +4,7 @@ import IcliKit
 struct Tests: ParsableCommand {
     static var configuration = CommandConfiguration(
         abstract: "Run self-tests on this device; report failures and untested capabilities",
-        discussion: "Uses temporary files and a dedicated Keychain item. Unlock the device for screen tests. Supply the signed SelfTestFixture.app to test app registration. Does not reboot or change device settings."
+        discussion: "Uses temporary files and a dedicated Keychain item. Unlock the device for screen tests. Supply the signed SelfTestFixture.app to test app registration. Does not reboot or change device settings.",
     )
     @OptionGroup var output: OutputOptions
     @Option(help: "Require this bootstrap layout: rootless, roothide, or rootful") var expectLayout: String?

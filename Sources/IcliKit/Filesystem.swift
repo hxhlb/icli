@@ -10,7 +10,7 @@ public func listDirectory(_ path: String) throws -> [String: Any] {
     ])
     let entries: [[String: Any]] = items.sorted { $0.lastPathComponent < $1.lastPathComponent }.map { item in
         let values = try? item.resourceValues(forKeys: [
-            .isDirectoryKey, .fileSizeKey, .isSymbolicLinkKey, .contentModificationDateKey
+            .isDirectoryKey, .fileSizeKey, .isSymbolicLinkKey, .contentModificationDateKey,
         ])
         return [
             "name": item.lastPathComponent,
@@ -120,7 +120,7 @@ public func createSymlink(target: String, link: String, replace: Bool) throws ->
     return [
         "link": link,
         "target": target,
-        "resolved": (try? FileManager.default.destinationOfSymbolicLink(atPath: link)) ?? ""
+        "resolved": (try? FileManager.default.destinationOfSymbolicLink(atPath: link)) ?? "",
     ]
 }
 
@@ -202,7 +202,7 @@ public func setPlistValue(_ path: String, key: String, json: String?) throws -> 
         "key": key,
         "value": plist[key].map(jsonSafe) ?? NSNull(),
         "previous": previous.map(jsonSafe) ?? NSNull(),
-        "format": format == .binary ? "binary" : "xml"
+        "format": format == .binary ? "binary" : "xml",
     ]
 }
 

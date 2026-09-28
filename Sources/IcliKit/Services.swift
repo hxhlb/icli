@@ -43,7 +43,7 @@ public func loadServices(_ paths: [String], load: Bool, override: Bool) throws -
         "loaded": load,
         "services": services,
         "errors": errors,
-        "verified": true
+        "verified": true,
     ]
     if !errors.isEmpty {
         // launchd reports EEXIST/EALREADY (load) or 113 ENOSERVICE (unload) when a
@@ -94,7 +94,7 @@ private func serviceActionResult(
     _ raw: String?,
     label: String,
     action: String,
-    benignStatuses: Set<Int> = []
+    benignStatuses: Set<Int> = [],
 ) throws -> [String: Any] {
     let result = try decode(raw)
     let status = result["status"] as? Int ?? 0
@@ -124,7 +124,7 @@ public func startService(_ label: String) throws -> [String: Any] {
         takeCString(icli_launchd_start_json(label)),
         label: label,
         action: "start",
-        benignStatuses: [Int(EALREADY)]
+        benignStatuses: [Int(EALREADY)],
     )
 }
 
@@ -134,7 +134,7 @@ public func stopService(_ label: String) throws -> [String: Any] {
         takeCString(icli_launchd_stop_json(label)),
         label: label,
         action: "stop",
-        benignStatuses: [Int(EALREADY)]
+        benignStatuses: [Int(EALREADY)],
     )
 }
 
@@ -144,7 +144,7 @@ public func removeService(_ label: String) throws -> [String: Any] {
         takeCString(icli_launchd_remove_json(label)),
         label: label,
         action: "remove",
-        benignStatuses: [113]
+        benignStatuses: [113],
     )
 }
 
@@ -154,7 +154,7 @@ public func signalService(_ label: String, signal: String) throws -> [String: An
     var result = try serviceActionResult(
         takeCString(icli_launchd_kill_json(label, number)),
         label: label,
-        action: "kill"
+        action: "kill",
     )
     result["signal"] = number
     return result

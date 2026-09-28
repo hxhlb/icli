@@ -44,7 +44,7 @@ public struct JailbreakRoot: Equatable {
         return JailbreakRoot(
             layout: (info["layout"] as? String).flatMap(Layout.init(rawValue:)),
             jbroot: info["jbroot"] as? String ?? "/",
-            source: info["source"] as? String ?? "unavailable"
+            source: info["source"] as? String ?? "unavailable",
         )
     }
 }

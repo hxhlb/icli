@@ -55,7 +55,8 @@ private func processMatchesApp(_ process: [String: Any], _ app: [String: Any]) -
 func frontmostPID() throws -> Int32 {
     let frontmost = frontmostApp()
     guard frontmost["verified"] as? Bool == true,
-          let bundleID = frontmost["bundle_id"] as? String else {
+          let bundleID = frontmost["bundle_id"] as? String
+    else {
         throw IcliError.failed("frontmost application could not be verified")
     }
     let processes = try listProcesses(filter: nil)["processes"] as? [[String: Any]] ?? []
@@ -134,7 +135,7 @@ public func killApp(_ bundleID: String, force: Bool) throws -> [String: Any] {
 public func installPackage(
     _ path: String,
     container: Bool = false,
-    registration: AppRegistrationType = .user
+    registration: AppRegistrationType = .user,
 ) throws -> [String: Any] {
     guard FileManager.default.fileExists(atPath: path) else { throw IcliError.failed("package not found: \(path)") }
     if container {
@@ -217,7 +218,7 @@ public func refreshApps(directory: String?) throws -> [String: Any] {
     guard failed.isEmpty, unverified.isEmpty else {
         throw IcliError.commandFailed(result.merging([
             "error": "refresh_incomplete",
-            "message": "\(failed.count) failed, \(unverified.count) unverified"
+            "message": "\(failed.count) failed, \(unverified.count) unverified",
         ]) { $1 })
     }
     return result
@@ -229,14 +230,14 @@ public func unregisterAppsInDirectory(_ directory: String, force: Bool) throws -
     }
     let result = try decodeBridgeJSON(
         takeCString(icli_apps_unregister_directory_json(directory)),
-        "application response"
+        "application response",
     )
     let failed = result["failed"] as? [String] ?? []
     let unverified = result["unverified"] as? [String] ?? []
     guard failed.isEmpty, unverified.isEmpty else {
         throw IcliError.commandFailed(result.merging([
             "error": "unregister_incomplete",
-            "message": "\(failed.count) failed, \(unverified.count) unverified"
+            "message": "\(failed.count) failed, \(unverified.count) unverified",
         ]) { $1 })
     }
     return result

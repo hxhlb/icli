@@ -15,11 +15,11 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "IcliPackageConsumer",
-            dependencies: [.product(name: "IcliKit", package: "icli")]
+            dependencies: [.product(name: "IcliKit", package: "icli")],
         ),
         .executableTarget(
             name: "IcliSystemConsumer",
-            dependencies: [.product(name: "IcliSystem", package: "icli")]
+            dependencies: [.product(name: "IcliSystem", package: "icli")],
         ),
-    ]
+    ],
 )

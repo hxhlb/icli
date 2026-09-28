@@ -92,7 +92,7 @@ public func serviceStatus(_ label: String) throws -> [String: Any] {
         "enabled": !(overrides[label] ?? false),
         "override": overrides[label] != nil,
         "loaded": false,
-        "running": false
+        "running": false,
     ]
     var domains: [String] = []
     try forEachLaunchdDomain(in: listed) { domain, record in

@@ -5,14 +5,14 @@ import IcliKit
 struct Device: ParsableCommand {
     static var configuration = CommandConfiguration(
         abstract: "Device info and settings",
-        subcommands: [Info.self, Jetsam.self, Brightness.self, Volume.self, Rotation.self, Network.self, Ioreg.self, Devmode.self, LowPower.self, Reboot.self, Bootlogo.self]
+        subcommands: [Info.self, Jetsam.self, Brightness.self, Volume.self, Rotation.self, Network.self, Ioreg.self, Devmode.self, LowPower.self, Reboot.self, Bootlogo.self],
     )
 }
 
 extension Device {
     struct Reboot: ParsableCommand {
         static var configuration = CommandConfiguration(
-            abstract: "Request a full or userspace reboot (root); completion is proven by reconnecting"
+            abstract: "Request a full or userspace reboot (root); completion is proven by reconnecting",
         )
         @OptionGroup var output: OutputOptions
         @Flag(help: "Restart userspace only (launchd re-exec) instead of the whole device") var userspace = false
@@ -24,7 +24,7 @@ extension Device {
 
     struct Bootlogo: ParsableCommand {
         static var configuration = CommandConfiguration(
-            abstract: "Render a screen-sized JPEG 2000 boot logo from a mark image"
+            abstract: "Render a screen-sized JPEG 2000 boot logo from a mark image",
         )
         @OptionGroup var output: OutputOptions
         @Option(help: "PNG/JPEG mark image") var mark: String
@@ -41,7 +41,7 @@ extension Device {
                     dark: dark,
                     width: width,
                     height: height,
-                    markPoints: markPoints
+                    markPoints: markPoints,
                 )
             }
         }
@@ -58,7 +58,7 @@ extension Device {
     struct Jetsam: ParsableCommand {
         static var configuration = CommandConfiguration(
             abstract: "Jetsam bands, jetsam property lists and memory pressure",
-            discussion: "The priority list needs root or com.apple.private.memorystatus; without it the result carries 'priorities_error' and the rest still comes back."
+            discussion: "The priority list needs root or com.apple.private.memorystatus; without it the result carries 'priorities_error' and the rest still comes back.",
         )
         @OptionGroup var output: OutputOptions
         func run() {
@@ -115,7 +115,7 @@ extension Device {
     struct Rotation: ParsableCommand {
         static var configuration = CommandConfiguration(
             abstract: "Display orientation",
-            subcommands: [Get.self, Set.self, Lock.self]
+            subcommands: [Get.self, Set.self, Lock.self],
         )
         struct Get: ParsableCommand {
             @OptionGroup var output: OutputOptions
@@ -127,7 +127,7 @@ extension Device {
         struct Set: ParsableCommand {
             @OptionGroup var output: OutputOptions
             @Argument(
-                help: "Orientation: portrait (0), landscape-left (90), upside-down (180), or landscape-right (270)."
+                help: "Orientation: portrait (0), landscape-left (90), upside-down (180), or landscape-right (270).",
             )
             var value: String
             func run() {
@@ -157,11 +157,11 @@ extension Device {
     struct Devmode: ParsableCommand {
         static var configuration = CommandConfiguration(
             abstract: "Developer Mode status, and arming it when it is off",
-            subcommands: [Get.self, Enable.self]
+            subcommands: [Get.self, Enable.self],
         )
         struct Get: ParsableCommand {
             static var configuration = CommandConfiguration(
-                abstract: "Whether Developer Mode is on, armed for the next restart, and changeable"
+                abstract: "Whether Developer Mode is on, armed for the next restart, and changeable",
             )
             @OptionGroup var output: OutputOptions
             func run() {
@@ -172,7 +172,7 @@ extension Device {
         struct Enable: ParsableCommand {
             static var configuration = CommandConfiguration(
                 abstract: "Arm Developer Mode so it turns on after the next restart",
-                discussion: "Does nothing when Developer Mode is already on or armed. It does not restart the device; after the restart the user confirms the prompt on the device."
+                discussion: "Does nothing when Developer Mode is already on or armed. It does not restart the device; after the restart the user confirms the prompt on the device.",
             )
             @OptionGroup var output: OutputOptions
             func run() {
@@ -185,7 +185,7 @@ extension Device {
         static var configuration = CommandConfiguration(
             commandName: "low-power",
             abstract: "Low Power Mode",
-            subcommands: [Get.self, Set.self]
+            subcommands: [Get.self, Set.self],
         )
         struct Get: ParsableCommand {
             @OptionGroup var output: OutputOptions

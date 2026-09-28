@@ -5,7 +5,7 @@ import IcliKit
 struct Sec: ParsableCommand {
     static var configuration = CommandConfiguration(
         abstract: "Manage keychain items and check for SSL Kill Switch files.",
-        subcommands: [Keychain.self, SSLKillswitch.self]
+        subcommands: [Keychain.self, SSLKillswitch.self],
     )
 }
 
@@ -16,7 +16,7 @@ extension Sec {
         static var configuration = CommandConfiguration(
             abstract: "Keychain items",
             subcommands: [List.self, Database.self, Get.self, Add.self, Update.self, Delete.self],
-            defaultSubcommand: List.self
+            defaultSubcommand: List.self,
         )
         struct List: ParsableCommand {
             @OptionGroup var output: OutputOptions
@@ -34,7 +34,7 @@ extension Sec {
                         account: account,
                         server: server,
                         group: group,
-                        includeData: false
+                        includeData: false,
                     )
                 }
             }
@@ -42,7 +42,7 @@ extension Sec {
 
         struct Database: ParsableCommand {
             static var configuration = CommandConfiguration(
-                abstract: "Read protected Keychain database metadata (requires filesystem access)."
+                abstract: "Read protected Keychain database metadata (requires filesystem access).",
             )
             @OptionGroup var output: OutputOptions
             @Option(name: .long, help: "genp, inet, cert, keys, or the full class name")
@@ -66,7 +66,7 @@ extension Sec {
                         service: service,
                         account: account,
                         server: server,
-                        group: group
+                        group: group,
                     )
                 }
             }
@@ -90,7 +90,7 @@ extension Sec {
                         server: server,
                         label: label,
                         group: group,
-                        data: data
+                        data: data,
                     )
                 }
             }
@@ -112,7 +112,7 @@ extension Sec {
                         account: account,
                         server: server,
                         group: group,
-                        data: data
+                        data: data,
                     )
                 }
             }
@@ -134,7 +134,7 @@ extension Sec {
                         service: service,
                         account: account,
                         server: server,
-                        group: group
+                        group: group,
                     )
                 }
             }
@@ -144,7 +144,7 @@ extension Sec {
     struct SSLKillswitch: ParsableCommand {
         static var configuration = CommandConfiguration(
             commandName: "ssl-killswitch",
-            abstract: "Check for SSL Kill Switch files in known installation locations."
+            abstract: "Check for SSL Kill Switch files in known installation locations.",
         )
         @OptionGroup var output: OutputOptions
         func run() {

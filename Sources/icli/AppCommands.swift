@@ -12,14 +12,14 @@ struct App: ParsableCommand {
             Launch.self, Open.self, Kill.self, Install.self, Uninstall.self,
             Register.self, Unregister.self, Refresh.self, UnregisterDir.self, Network.self,
             Handlers.self, Schemes.self, Binary.self, Data.self,
-        ]
+        ],
     )
 }
 
 extension App {
     struct Refresh: ParsableCommand {
         static var configuration = CommandConfiguration(
-            abstract: "Register new, moved or updated apps, skip unchanged apps, and drop stale registrations"
+            abstract: "Register new, moved or updated apps, skip unchanged apps, and drop stale registrations",
         )
         @OptionGroup var output: OutputOptions
         @Option(help: "Directory of .app bundles (default: the bootstrap's /Applications)") var directory: String?
@@ -31,7 +31,7 @@ extension App {
     struct UnregisterDir: ParsableCommand {
         static var configuration = CommandConfiguration(
             commandName: "unregister-dir",
-            abstract: "Unregister every registered app whose bundle is directly inside a directory"
+            abstract: "Unregister every registered app whose bundle is directly inside a directory",
         )
         @OptionGroup var output: OutputOptions
         @Argument var directory: String
@@ -44,7 +44,7 @@ extension App {
     struct Network: ParsableCommand {
         static var configuration = CommandConfiguration(
             abstract: "Per-app Wi-Fi/cellular data policy",
-            subcommands: [Get.self, Repair.self]
+            subcommands: [Get.self, Repair.self],
         )
         struct Get: ParsableCommand {
             @OptionGroup var output: OutputOptions
@@ -56,7 +56,7 @@ extension App {
 
         struct Repair: ParsableCommand {
             static var configuration = CommandConfiguration(
-                abstract: "Set both policies to always-allow and read them back"
+                abstract: "Set both policies to always-allow and read them back",
             )
             @OptionGroup var output: OutputOptions
             @Argument var bundleID: String
@@ -132,7 +132,7 @@ extension App {
     struct Install: ParsableCommand {
         static var configuration = CommandConfiguration(
             abstract: "Install a .deb, an .ipa or a .app bundle",
-            discussion: "An .ipa goes into the bootstrap's /Applications, or with --container into its own app container under /var/containers/Bundle/Application with a data container, like an App Store app. icli does not re-sign the app, so the IPA must already be signed so that this device can run it."
+            discussion: "An .ipa goes into the bootstrap's /Applications, or with --container into its own app container under /var/containers/Bundle/Application with a data container, like an App Store app. icli does not re-sign the app, so the IPA must already be signed so that this device can run it.",
         )
         @OptionGroup var output: OutputOptions
         @Argument var path: String
@@ -220,14 +220,14 @@ extension App {
 struct Clipboard: ParsableCommand {
     static var configuration = CommandConfiguration(
         abstract: "Read or replace the clipboard's text or image.",
-        subcommands: [Get.self, Set.self]
+        subcommands: [Get.self, Set.self],
     )
 }
 
 extension Clipboard {
     struct Get: ParsableCommand {
         static var configuration = CommandConfiguration(
-            abstract: "Text, change count, types, and the image's pixel size if there is one"
+            abstract: "Text, change count, types, and the image's pixel size if there is one",
         )
         @OptionGroup var output: OutputOptions
         @Option(help: "Write the clipboard image to this path as PNG.") var imageOutput: String?
@@ -238,7 +238,7 @@ extension Clipboard {
 
     struct Set: ParsableCommand {
         static var configuration = CommandConfiguration(
-            abstract: "Replace the clipboard with text or an image and read it back"
+            abstract: "Replace the clipboard with text or an image and read it back",
         )
         @OptionGroup var output: OutputOptions
         @Argument var text: String?
@@ -260,7 +260,7 @@ struct URLCommand: ParsableCommand {
     static var configuration = CommandConfiguration(
         commandName: "url",
         abstract: "Open a URL in its registered app.",
-        subcommands: [Open.self]
+        subcommands: [Open.self],
     )
 }
 

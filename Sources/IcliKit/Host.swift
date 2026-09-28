@@ -74,7 +74,7 @@ public func captureSyslog(
     seconds: TimeInterval,
     process: String? = nil,
     level: String = "all",
-    maxLines: Int = 500
+    maxLines: Int = 500,
 ) throws -> [String: Any] {
     guard seconds.isFinite, (0.1 ... 60).contains(seconds), ["all", "error", "fault"].contains(level),
           (1 ... 5000).contains(maxLines)
@@ -83,7 +83,7 @@ public func captureSyslog(
     }
     return try decodeBridgeJSON(
         takeCString(icli_syslog_json(seconds, process, level, Int32(maxLines))),
-        "unified log response"
+        "unified log response",
     )
 }
 
@@ -97,7 +97,7 @@ public func listKeychain(
     account: String?,
     server: String?,
     group: String?,
-    includeData: Bool
+    includeData: Bool,
 ) throws -> [String: Any] {
     var items: [[String: Any]] = []
     for entry in keychainClasses(className) {
@@ -130,7 +130,7 @@ public func getKeychain(
     service: String?,
     account: String?,
     server: String?,
-    group: String?
+    group: String?,
 ) throws -> [String: Any] {
     let listed = try listKeychain(
         className: className,
@@ -138,7 +138,7 @@ public func getKeychain(
         account: account,
         server: server,
         group: group,
-        includeData: true
+        includeData: true,
     )
     let items = listed["items"] as? [[String: Any]] ?? []
     if items.isEmpty {
@@ -154,7 +154,7 @@ public func addKeychain(
     server: String?,
     label: String?,
     group: String?,
-    data: String
+    data: String,
 ) throws -> [String: Any] {
     var item: [String: Any] = try [
         kSecClass as String: secClass(named: className),
@@ -202,18 +202,18 @@ public func updateKeychain(
     account: String,
     server: String?,
     group: String?,
-    data: String
+    data: String,
 ) throws -> [String: Any] {
     let query = try keychainQuery(
         secClass(named: className),
         service: service,
         account: account,
         server: server,
-        group: group
+        group: group,
     )
     try throwIfKeychain(
         SecItemUpdate(query as CFDictionary, [kSecValueData as String: Data(data.utf8)] as CFDictionary),
-        action: "update"
+        action: "update",
     )
     return try getKeychain(className: className, service: service, account: account, server: server, group: group)
 }
@@ -223,14 +223,14 @@ public func deleteKeychain(
     service: String?,
     account: String?,
     server: String?,
-    group: String?
+    group: String?,
 ) throws -> [String: Any] {
     let query = try keychainQuery(
         secClass(named: className),
         service: service,
         account: account,
         server: server,
-        group: group
+        group: group,
     )
     let status = SecItemDelete(query as CFDictionary)
     if status == errSecItemNotFound {
@@ -275,7 +275,7 @@ private func keychainQuery(
     service: String?,
     account: String?,
     server: String?,
-    group: String?
+    group: String?,
 ) -> [String: Any] {
     var query: [String: Any] = [kSecClass as String: secClass]
     if let service, !service.isEmpty {
@@ -348,7 +348,7 @@ public func capturePackets(
     seconds: TimeInterval,
     interface: String = "en0",
     filter: String? = nil,
-    output: String? = nil
+    output: String? = nil,
 ) throws -> [String: Any] {
     guard seconds.isFinite, (1 ... 60).contains(seconds) else {
         throw IcliError.failed("Capture duration must be between 1 and 60 seconds.")

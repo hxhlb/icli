@@ -26,7 +26,7 @@ public func simulateLocation(
     horizontalAccuracy: Double = 5,
     verticalAccuracy: Double = 5,
     speed: Double? = nil,
-    course: Double? = nil
+    course: Double? = nil,
 ) throws -> [String: Any] {
     guard latitude.isFinite, (-90 ... 90).contains(latitude) else {
         throw IcliError.failed("latitude must be between -90 and 90")
@@ -58,7 +58,7 @@ public func simulateLocation(
         horizontalAccuracy,
         verticalAccuracy,
         speed ?? -1,
-        course ?? -1
+        course ?? -1,
     )))
     // locationd accepts the request without a reply, and ignores it without
     // the simulation entitlement, so only a read-back proves it took effect.
