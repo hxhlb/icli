@@ -125,13 +125,15 @@ private func forEachLaunchdDomain(in result: [String: Any], _ body: (String, [St
 }
 
 /// Folds one domain's launchd record into `row`: a running instance's pid wins,
-/// otherwise the first domain's values stand.
+/// otherwise the first domain's values stand. A named lookup returns the job's
+/// plist (`PID`, `LastExitStatus`, `Program`); the full list returns only
+/// `pid` and `status` for each label.
 private func mergeLaunchdService(_ service: [String: Any], into row: inout [String: Any]) {
-    let pid = service["PID"] as? Int ?? 0
+    let pid = (service["PID"] ?? service["pid"]) as? Int ?? 0
     if pid > 0 || row["pid"] == nil {
         row["pid"] = pid
         row["running"] = pid > 0
-        row["last_exit_status"] = service["LastExitStatus"] ?? 0
+        row["last_exit_status"] = service["LastExitStatus"] ?? service["status"] ?? 0
     }
     if let program = service["Program"] {
         row["program"] = program

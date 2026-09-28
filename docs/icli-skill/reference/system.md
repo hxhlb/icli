@@ -6,7 +6,7 @@ Label commands take the plist's `Label` value without a domain prefix, for examp
 
 | Command | Purpose | Key flags | Root |
 | --- | --- | --- | --- |
-| `svc list [<label>]` | All visible services, or one service's status | | no |
+| `svc list [<label>]` | All visible services with PID and last exit status, or one service's status; launchd's full list carries no program path, so only the one-label form reports `program` | | no |
 | `svc status <label>` | Enabled, loaded, running, PID | | no |
 | `svc print <label>` | launchd's full description | | no |
 | `svc print-disabled` | Persistent disabled overrides | | no |

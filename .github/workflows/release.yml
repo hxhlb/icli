@@ -76,7 +76,8 @@ jobs:
           tag = os.environ['RELEASE_TAG']
           notes = f'''Rootless and experimental RootHide DEBs contain the same signed arm64 executable.
 
-          - New `notify post` and `notify get` commands post Darwin notifications through notifyd and read their state, like `notifyutil`; IcliKit exposes them as `postDarwinNotification` and `darwinNotificationState`. `delivered` reports whether notifyd delivered the post back to icli. Names notifyd reserves, such as `com.apple.system.*`, need root.
+          - `svc list` and IcliSystem's `listServices` report each service's PID, running state and last exit status again. launchd's full list names these `pid` and `status`, not `PID` and `LastExitStatus` as in a one-label lookup, so 0.7.0 reported every service as stopped. The full list has no program path; `svc status <label>` reports it.
+          - Includes the 0.7.0 `notify post` and `notify get` commands (IcliKit `postDarwinNotification` and `darwinNotificationState`).
           - Dependencies stay minimum versions: libarchive.xcframework from 1.0.0 (the `ArchiveKit` product) and Swift Argument Parser from 1.3.1.
           - Swift Package library products: **IcliKit** and **IcliSystem**.
           - CI checks architecture, firmware-only package dependency, entitlements, system-linked libraries, package ownership, matching binaries, and absence of process-launch imports.
