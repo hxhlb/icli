@@ -36,11 +36,15 @@ struct xpc_global_data {
     mach_port_t task_bootstrap_port;
     xpc_object_t xpc_bootstrap_pipe;
 };
+// The reply comes back retained, as launchctl's xpc_release of it shows. Left
+// as an implicitly __autoreleasing out parameter, ARC retains it once more and
+// it is never freed; a load reply carries the job's listening sockets, so the
+// ports stayed bound after bootout for as long as this process lived.
 extern int _xpc_pipe_interface_routine(
     xpc_object_t pipe,
     uint64_t routine,
     xpc_object_t message,
-    xpc_object_t *reply,
+    xpc_object_t __strong *reply,
     uint64_t flags
 );
 extern const char *xpc_strerror(int error);
