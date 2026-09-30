@@ -97,7 +97,7 @@ static NSString *walkTar(
     return failure;
 }
 
-char *icli_deb_read_json(const char *path, const char *destination) {
+static char *readDeb(const char *path, const char *destination) {
     struct archive *reader = archive_read_new();
     if (!reader) return icli_json(@{@"error": @"archive allocation failed"});
     archive_read_support_format_ar(reader);
@@ -159,6 +159,10 @@ char *icli_deb_read_json(const char *path, const char *destination) {
     return icli_json(result);
 }
 
+char *icli_deb_read_json(const char *path, const char *destination) {
+    return icli_archive_with_utf8_names(^{ return readDeb(path, destination); });
+}
+
 /// Archive path as dpkg records it in info/*.list: "./usr/bin/x" and
 /// "usr/bin/x" both become "/usr/bin/x"; the root entry is "/.".
 static NSString *recordedPath(const char *raw) {
@@ -182,7 +186,7 @@ static NSString *applyEntryMetadata(NSString *destination, struct archive_entry 
 /// the destination. Paths are prefixed with `prefix` (empty on rootless,
 /// where archives already carry /var/jb). Paths in `skip` are recorded but
 /// not written (existing conffiles).
-char *icli_deb_unpack_json(const char *path, const char *prefix, const char **skip, int skip_count) {
+static char *unpackDeb(const char *path, const char *prefix, const char **skip, int skip_count) {
     NSMutableSet *skipped = [NSMutableSet set];
     for (int i = 0; i < skip_count; i++) if (skip[i]) [skipped addObject:@(skip[i])];
     NSMutableArray *installed = [NSMutableArray array], *kept = [NSMutableArray array];
@@ -270,9 +274,13 @@ char *icli_deb_unpack_json(const char *path, const char *prefix, const char **sk
     return icli_json(@{@"installed": installed, @"kept": kept});
 }
 
+char *icli_deb_unpack_json(const char *path, const char *prefix, const char **skip, int skip_count) {
+    return icli_archive_with_utf8_names(^{ return unpackDeb(path, prefix, skip, skip_count); });
+}
+
 /// Reads one small entry from a tar file (optionally compressed), for
 /// comparing a bundled BaseBin's `basebin/.version` without extracting it.
-char *icli_tar_entry_text(const char *path, const char *entry_name) {
+static char *tarEntryText(const char *path, const char *entry_name) {
     struct archive *reader = archive_read_new();
     if (!reader) return NULL;
     archive_read_support_format_tar(reader);
@@ -293,4 +301,8 @@ char *icli_tar_entry_text(const char *path, const char *entry_name) {
     }
     archive_read_free(reader);
     return text;
+}
+
+char *icli_tar_entry_text(const char *path, const char *entry_name) {
+    return icli_archive_with_utf8_names(^{ return tarEntryText(path, entry_name); });
 }

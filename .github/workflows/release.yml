@@ -54,6 +54,9 @@ jobs:
       - name: Build and sign the CLI
         run: make all CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=
 
+      - name: Archive names in the C locale
+        run: ./scripts/test-archive-locale.sh
+
       - name: Build and verify both DEBs
         run: ./scripts/check-packages.sh
 

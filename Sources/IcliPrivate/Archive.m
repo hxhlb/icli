@@ -7,8 +7,27 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include <xlocale.h>
 
 static const uint64_t kArchiveByteLimit = 1024ULL * 1024 * 1024;
+
+char *icli_archive_with_utf8_names(char *(^body)(void)) {
+    // uselocale, not setlocale: callers such as vphoned read archives on
+    // several worker threads at once. Without a UTF-8 locale ASCII names
+    // still work, so that case keeps the old behavior instead of failing.
+    locale_t previous = uselocale(NULL);
+    locale_t base = duplocale(previous);
+    locale_t utf8 = base ? newlocale(LC_CTYPE_MASK, "UTF-8", base) : NULL;
+    if (!utf8) {
+        if (base) freelocale(base);
+        return body();
+    }
+    uselocale(utf8);
+    char *result = body();
+    uselocale(previous);
+    freelocale(utf8);
+    return result;
+}
 
 /// Parent directories must resolve inside the staging root, so an earlier
 /// symlink entry cannot redirect a later file outside it.
@@ -122,7 +141,7 @@ NSString *icli_archive_extract(
     return failure;
 }
 
-char *icli_extract_ipa_json(const char *source, const char *destination) {
+static char *extractIPA(const char *source, const char *destination) {
     struct archive *reader = archive_read_new();
     if (!reader) return strdup("{\"error\":\"archive allocation failed\"}");
     archive_read_support_format_zip(reader);
@@ -137,4 +156,8 @@ char *icli_extract_ipa_json(const char *source, const char *destination) {
         ? @{@"error": [@"IPA: " stringByAppendingString:failure]}
         : @{@"entries": @(count), @"bytes": @(total)};
     return icli_json(result);
+}
+
+char *icli_extract_ipa_json(const char *source, const char *destination) {
+    return icli_archive_with_utf8_names(^{ return extractIPA(source, destination); });
 }
