@@ -51,6 +51,7 @@ NSString *icli_archive_extract(
     struct archive *reader,
     NSString *destination,
     bool allow_absolute_symlinks,
+    bool skip_mac_metadata,
     NSMutableArray *entries,
     NSUInteger *count,
     uint64_t *total
@@ -75,6 +76,10 @@ NSString *icli_archive_extract(
         }
         NSString *path = [[root stringByAppendingPathComponent:relative] stringByStandardizingPath];
         mode_t type = archive_entry_filetype(entry);
+        if (skip_mac_metadata
+            && ([relative.pathComponents.firstObject isEqualToString:@"__MACOSX"]
+                || (type == AE_IFREG && [relative.lastPathComponent hasPrefix:@"._"])))
+            continue;
         if ([path isEqualToString:root]) {
             if (type == AE_IFDIR) continue;
             failure = @"archive entry overwrites the staging root";
@@ -150,7 +155,7 @@ static char *extractIPA(const char *source, const char *destination) {
     uint64_t total = 0;
     if (archive_read_open_filename(reader, source, 65536) != ARCHIVE_OK)
         failure = @(archive_error_string(reader) ?: "could not open IPA");
-    if (!failure) failure = icli_archive_extract(reader, @(destination), false, nil, &count, &total);
+    if (!failure) failure = icli_archive_extract(reader, @(destination), false, true, nil, &count, &total);
     archive_read_free(reader);
     NSDictionary *result = failure
         ? @{@"error": [@"IPA: " stringByAppendingString:failure]}

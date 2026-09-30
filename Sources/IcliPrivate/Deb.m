@@ -74,7 +74,7 @@ static NSString *walkTar(
     if (destination) {
         NSUInteger count = 0;
         uint64_t total = 0;
-        failure = icli_archive_extract(reader, destination, absoluteLinks, entries, &count, &total);
+        failure = icli_archive_extract(reader, destination, absoluteLinks, false, entries, &count, &total);
     } else {
         struct archive_entry *entry;
         int status;

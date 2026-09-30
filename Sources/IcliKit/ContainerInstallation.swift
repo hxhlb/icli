@@ -45,7 +45,7 @@ private func physicalPath(_ path: String) -> String {
 
 private func appBundle(in bundleContainer: String) -> String? {
     let names = (try? FileManager.default.contentsOfDirectory(atPath: bundleContainer)) ?? []
-    return names.sorted().first { $0.hasSuffix(".app") }.map { bundleContainer + "/" + $0 }
+    return names.sorted().first { $0.hasSuffix(".app") && !$0.hasPrefix("._") }.map { bundleContainer + "/" + $0 }
 }
 
 /// The app's PlugIns/*.appex bundles that name an executable. Plug-in

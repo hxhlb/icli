@@ -15,10 +15,13 @@ NSDictionary *icli_archive_entry_info(struct archive_entry *entry, NSString *pat
 /// Extracts every entry of an opened reader below `destination`, rejecting
 /// paths, symlinks, and hard links that would leave it. Returns a failure
 /// message or nil; `entries` (optional) receives one dictionary per entry.
+/// `skip_mac_metadata` leaves out what a Mac adds when it zips a folder:
+/// the top-level __MACOSX tree and AppleDouble "._name" regular files.
 NSString *icli_archive_extract(
     struct archive *reader,
     NSString *destination,
     bool allow_absolute_symlinks,
+    bool skip_mac_metadata,
     NSMutableArray *entries,
     NSUInteger *count,
     uint64_t *total

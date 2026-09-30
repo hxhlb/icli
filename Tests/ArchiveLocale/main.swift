@@ -134,6 +134,23 @@ func run(deb: URL) throws {
     try check(try Data(contentsOf: archive) == data, "input archive changed")
     try check(restored(), "IPA extraction changed the caller's locale")
 
+    // IPA: the __MACOSX tree and AppleDouble files a Mac zips alongside are left out.
+    let macZip = root.appendingPathComponent("mac.ipa")
+    try zip([
+        ZIPEntry("Payload/X.app/Info.plist", "plist"),
+        ZIPEntry("Payload/._X.app", "appledouble"),
+        ZIPEntry("Payload/X.app/._Info.plist", "appledouble"),
+        ZIPEntry("Payload/X.app/._Link", "Info.plist", mode: 0o120777),
+        ZIPEntry("__MACOSX/Payload/._X.app", "appledouble"),
+    ]).write(to: macZip)
+    let macRoot = root.appendingPathComponent("mac")
+    let macResult = try extract(macZip, macRoot)
+    try check(macResult["error"] == nil, "Mac-zipped IPA extraction failed: \(macResult)")
+    // contentsOfDirectory hides "._" names on macOS; iOS lists them.
+    let extracted = try FileManager.default.subpathsOfDirectory(atPath: macRoot.path).sorted()
+    let expected = ["Payload", "Payload/X.app", "Payload/X.app/._Link", "Payload/X.app/Info.plist"]
+    try check(extracted == expected, "Mac metadata was extracted, or a symlink was lost: \(extracted)")
+
     // The existing integrity and path-safety checks still reject bad entries.
     var invalid = ZIPEntry("Payload/Test.app/invalid.txt", "data")
     invalid.name = Data("Payload/Test.app/".utf8) + Data([0xFF]) + Data(".txt".utf8)
@@ -199,7 +216,7 @@ func run(deb: URL) throws {
 do {
     guard CommandLine.arguments.count == 2 else { throw TestFailure.check("usage: archive-locale-tests <deb>") }
     try run(deb: URL(fileURLWithPath: CommandLine.arguments[1]))
-    print("PASS: Unicode IPA and deb names in the C locale, byte preservation, rejection checks, thread-local restoration")
+    print("PASS: Unicode IPA and deb names in the C locale, byte preservation, Mac metadata skipped, rejection checks, thread-local restoration")
 } catch {
     FileHandle.standardError.write(Data("FAIL: \(error)\n".utf8))
     exit(1)
