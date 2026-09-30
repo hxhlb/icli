@@ -18,7 +18,8 @@ private func readLocation(timeout: Double, matching target: (Double, Double)? = 
 
 /// Makes locationd report a fixed simulated location to every client until
 /// `clearSimulatedLocation()` runs. The simulation stays on after this process
-/// exits. A nil speed or course is reported as unknown (-1).
+/// exits. A nil speed or course is reported as unknown (-1). A vertical
+/// accuracy of -1 marks the altitude as unknown, as CoreLocation does.
 public func simulateLocation(
     latitude: Double,
     longitude: Double,
@@ -40,8 +41,8 @@ public func simulateLocation(
     guard horizontalAccuracy.isFinite, horizontalAccuracy >= 0 else {
         throw IcliError.failed("horizontal accuracy must be 0 or more metres")
     }
-    guard verticalAccuracy.isFinite, verticalAccuracy >= 0 else {
-        throw IcliError.failed("vertical accuracy must be 0 or more metres")
+    guard verticalAccuracy.isFinite, verticalAccuracy >= 0 || verticalAccuracy == -1 else {
+        throw IcliError.failed("vertical accuracy must be 0 or more metres, or -1 for an unknown altitude")
     }
     if let speed {
         guard speed.isFinite, speed >= 0 else { throw IcliError.failed("speed must be 0 or more metres per second") }

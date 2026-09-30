@@ -27,7 +27,7 @@ struct Location: ParsableCommand {
         var coordinate: [String]
         @Option(help: "Altitude in metres.") var altitude: Double = 0
         @Option(help: "Horizontal accuracy in metres.") var horizontalAccuracy: Double = 5
-        @Option(help: "Vertical accuracy in metres.") var verticalAccuracy: Double = 5
+        @Option(help: "Vertical accuracy in metres, or -1 for an unknown altitude.") var verticalAccuracy: Double = 5
         @Option(help: "Speed in metres per second (default: unknown).") var speed: Double?
         @Option(help: "Course in degrees from true north, 0 to less than 360 (default: unknown).") var course: Double?
         func validate() throws {

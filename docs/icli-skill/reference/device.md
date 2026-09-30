@@ -37,7 +37,7 @@ Developer Mode notes:
 
 | Command | Purpose | Key flags | Root | Screen |
 | --- | --- | --- | --- | --- |
-| `location set <latitude> <longitude>` | Simulate a fixed location for every app, then read it back to confirm | `--altitude 0`, `--horizontal-accuracy 5`, `--vertical-accuracy 5`, `--speed`, `--course` (speed and course default to unknown) | no | any |
+| `location set <latitude> <longitude>` | Simulate a fixed location for every app, then read it back to confirm | `--altitude 0`, `--horizontal-accuracy 5`, `--vertical-accuracy 5` (-1 = unknown altitude), `--speed`, `--course` (speed and course default to unknown) | no | any |
 | `location clear` | Stop simulating | | no | any |
 | `location get` | The location CoreLocation reports: coordinates, altitude, accuracies, speed, course, `timestamp`, `age_seconds`, `fresh`, `simulated` | `--timeout 10` | no | any |
 
