@@ -79,7 +79,8 @@ jobs:
           tag = os.environ['RELEASE_TAG']
           notes = f'''Rootless and experimental RootHide DEBs contain the same signed arm64 executable.
 
-          - IPAs zipped on a Mac install. Finder's Compress, and `ditto -c -k` without `--norsrc`, add AppleDouble files such as `Payload/._App.app` beside the bundle, and sometimes a top-level `__MACOSX` folder. `install` and IcliKit's `installIPA` counted `._App.app` as a second bundle and failed with "IPA must contain exactly one Payload/*.app". IPA extraction now skips `__MACOSX` and every regular file whose name starts with `._`, as a device does.
+          - `location set` and IcliKit's `simulateLocation` accept a vertical accuracy of -1, which CoreLocation uses for a fix with no altitude, such as a Mac's. It passes through to the simulated `CLLocation` and marks the altitude unknown; before, it failed with "vertical accuracy must be 0 or more metres". Other negative values are still refused.
+          - Includes the 0.7.6 IPA fix: IPAs zipped on a Mac install. Extraction skips `__MACOSX` and AppleDouble `._` files, as a device does.
           - Includes the 0.7.5 archive name fix: UTF-8 entry names in IPAs and debs read correctly in the C locale that launchd daemons start in. Reported and first fixed in vphoned by Yanni Pang (Lakr233/vphone-cli#530).
           - Includes the 0.7.4 launchd reply release: a socket-activated daemon loaded through IcliKit's `loadServices` no longer keeps its port bound after it is unloaded.
           - Includes the 0.7.3 capture cleanup: `screen describe`, `screen ocr` and `screen shot` remove the temporary JPEG they capture into on every path out.
