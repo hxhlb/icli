@@ -79,8 +79,10 @@ jobs:
           tag = os.environ['RELEASE_TAG']
           notes = f'''Rootless and experimental RootHide DEBs contain the same signed arm64 executable.
 
-          - New **IcliLaunch** library product: `launchApp`, `lockState` and `frontmostApp`, linking Foundation alone, for a tool that only brings an app to the front. IcliKit re-exports it; the CLI is unchanged.
-          - `launchApp` reports a locked device. Its LaunchServices fallback ignored the refusal, so a library caller on a locked device waited five seconds for "app did not become frontmost"; it now throws `IcliError.locked` at once. The frontmost wait needs `com.apple.private.security.no-sandbox` in the caller.
+          - Rotation keeps working in a host that outlives a respring, such as vphoned. IcliKit kept the accessibility port of the SpringBoard it first reached, and a daemon never runs the main-thread run loop that would have noticed SpringBoard exit, so every later `setRotation` failed with "The device did not apply the requested rotation." A dead port is now dropped before each call. The `icli` command was not affected.
+          - A screen capture waits until the display has a size. During boot, `rotationInfo()` and the screen commands could crash the calling process inside `_UICreateScreenUIImage`.
+          - IcliKit adds `interfaceRotationDegrees()`: SpringBoard's interface orientation, without a screen capture.
+          - Includes the 0.7.8 **IcliLaunch** library product (`launchApp`, `lockState` and `frontmostApp`, linking Foundation alone), and `launchApp` throwing `IcliError.locked` at once on a locked device.
           - Includes the 0.7.7 location fix: `location set` and IcliKit's `simulateLocation` accept a vertical accuracy of -1, which marks the altitude unknown.
           - Includes the 0.7.6 IPA fix: IPAs zipped on a Mac install. Extraction skips `__MACOSX` and AppleDouble `._` files, as a device does.
           - Includes the 0.7.5 archive name fix: UTF-8 entry names in IPAs and debs read correctly in the C locale that launchd daemons start in. Reported and first fixed in vphoned by Yanni Pang (Lakr233/vphone-cli#530).
