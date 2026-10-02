@@ -79,7 +79,9 @@ jobs:
           tag = os.environ['RELEASE_TAG']
           notes = f'''Rootless and experimental RootHide DEBs contain the same signed arm64 executable.
 
-          - `location set` and IcliKit's `simulateLocation` accept a vertical accuracy of -1, which CoreLocation uses for a fix with no altitude, such as a Mac's. It passes through to the simulated `CLLocation` and marks the altitude unknown; before, it failed with "vertical accuracy must be 0 or more metres". Other negative values are still refused.
+          - New **IcliLaunch** library product: `launchApp`, `lockState` and `frontmostApp`, linking Foundation alone, for a tool that only brings an app to the front. IcliKit re-exports it; the CLI is unchanged.
+          - `launchApp` reports a locked device. Its LaunchServices fallback ignored the refusal, so a library caller on a locked device waited five seconds for "app did not become frontmost"; it now throws `IcliError.locked` at once. The frontmost wait needs `com.apple.private.security.no-sandbox` in the caller.
+          - Includes the 0.7.7 location fix: `location set` and IcliKit's `simulateLocation` accept a vertical accuracy of -1, which marks the altitude unknown.
           - Includes the 0.7.6 IPA fix: IPAs zipped on a Mac install. Extraction skips `__MACOSX` and AppleDouble `._` files, as a device does.
           - Includes the 0.7.5 archive name fix: UTF-8 entry names in IPAs and debs read correctly in the C locale that launchd daemons start in. Reported and first fixed in vphoned by Yanni Pang (Lakr233/vphone-cli#530).
           - Includes the 0.7.4 launchd reply release: a socket-activated daemon loaded through IcliKit's `loadServices` no longer keeps its port bound after it is unloaded.
@@ -87,7 +89,7 @@ jobs:
           - Includes the 0.7.2 accessibility switch restore: `ui tree`, `ui at` and `screen describe` need `_AXSApplicationAccessibilityEnabled` and `_AXSAutomationEnabled`, which are system-wide and stored in the `com.apple.Accessibility` preference domain as `ApplicationAccessibilityEnabled` and `AutomationEnabled`, and versions before 0.7.2 turned them on and never turned them back off. icli reads their values first, turns on only what is missing, and restores them when it exits. A device whose last run was 0.7.1 or earlier may still have them on: `icli prefs read com.apple.Accessibility ApplicationAccessibilityEnabled` reads the stored value, and `icli prefs delete` clears it.
           - Includes the 0.7.2 `app frontmost` fallback to RunningBoard's `UserInteractiveFocal` CPU role, the 0.7.1 launchd service list fix and the 0.7.0 `notify post` and `notify get` commands.
           - Dependencies stay minimum versions: libarchive.xcframework from 1.0.0 (the `ArchiveKit` product) and Swift Argument Parser from 1.3.1.
-          - Swift Package library products: **IcliKit** and **IcliSystem**.
+          - Swift Package library products: **IcliKit**, **IcliSystem** and **IcliLaunch**.
           - CI checks architecture, firmware-only package dependency, entitlements, system-linked libraries, package ownership, matching binaries, and absence of process-launch imports.
           - CI-built binaries are verified by package checks; CI does not rerun device tests.
           - Native DEB operations do not execute maintainer scripts or triggers.
