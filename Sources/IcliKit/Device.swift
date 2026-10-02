@@ -84,6 +84,14 @@ public func rotationInfo() -> [String: Any] {
     ]
 }
 
+/// SpringBoard's interface orientation in `rotationInfo()`'s degrees, or nil
+/// when SpringBoard does not answer. It asks SpringBoard alone, without the
+/// screen capture `rotationInfo()` makes.
+public func interfaceRotationDegrees() -> Int? {
+    let degrees = Int(icli_interface_degrees())
+    return degrees >= 0 ? degrees : nil
+}
+
 public func setRotation(_ spec: String) throws -> [String: Any] {
     let degrees = try parseRotationSpec(spec)
     guard icli_rotation_set(Int32(degrees)) else {

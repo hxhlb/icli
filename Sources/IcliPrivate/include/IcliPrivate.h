@@ -75,6 +75,8 @@ typedef struct {
     bool locked;
 } IcliRotation;
 
+/// SpringBoard's interface orientation in degrees, or -1 when it does not answer.
+int icli_interface_degrees(void);
 IcliRotation icli_rotation_get(void);
 bool icli_rotation_set(int degrees);
 bool icli_rotation_lock_set(bool locked);

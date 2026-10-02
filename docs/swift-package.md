@@ -60,6 +60,7 @@ Every `icli` command is a thin layer over a public IcliKit function, so a long-r
 | Darwin notifications | `postDarwinNotification(_:state:)`, `darwinNotificationState(_:)` |
 | Clipboard | `clipboardInfo(imageOutput:)`, `clipboardImagePNG()`, `setClipboardImage(_:)`, next to `clipboardText()` and `setClipboard(_:)` |
 | Preferences | `readPreference`, `writePreference` and `deletePreference`, with `PreferenceUser` and `PreferenceValue`. Build a `PreferenceValue` directly, or parse command-line text with `init(text:type:)`. |
+| Rotation | `rotationInfo()`, `setRotation(_:)`, `setRotationLock(_:)`, and `interfaceRotationDegrees()`, which asks SpringBoard alone and returns nil when it does not answer. A host that stays running across a respring keeps working: before 0.7.9 it kept the old SpringBoard's accessibility port, and every later call failed with "The device did not apply the requested rotation." |
 | Raw input | `touch(_:x:y:normalized:)`, `touchSequence(_:normalized:)` with `TouchEvent`, `hidEvent(page:usage:down:)`, `hidPress(page:usage:)`. `TouchPhase` is `down`, `move` or `up` (UITouchPhase 0, 1 and 3). |
 | Container installs | `installIPAInContainer(_:registration:)` or `installPackage(_:container:registration:)`, with `AppRegistrationType`. `installIPAInContainer(_:registration:prepareApp:)` lets an integrator prepare the validated temporary app bundle before container installation. `uninstallApp(_:force:)` removes container apps icli installed. |
 

@@ -9,6 +9,7 @@ OBJC_EXTERN UIImage *_UICreateScreenUIImage(void);
 #import <dlfcn.h>
 #import <notify.h>
 #import <objc/message.h>
+#import <mach/mach.h>
 #import <mach/mach_time.h>
 #import <unistd.h>
 #import <math.h>
@@ -331,13 +332,34 @@ static void invalidateInterfaceGeometry(void) {
     [geometryLock() unlock];
 }
 
+// _UICreateScreenUIImage sizes its surface from the screen and passes it to
+// CFGetTypeID without a nil check. While the display has no size yet, as
+// during boot, the surface is NULL and the caller crashes, so it is not asked.
+static bool screenCaptureReady(void) {
+    CGSize size = [UIScreen mainScreen].bounds.size;
+    if (size.width < 1 || size.height < 1) {
+        return false;
+    }
+    id display = mainDisplay();
+    if (!display) {
+        return true;
+    }
+    @try {
+        CGRect pixels = [[display valueForKey:@"bounds"] CGRectValue];
+        return pixels.size.width >= 1 && pixels.size.height >= 1;
+    } @catch (NSException *ex) {
+        (void)ex;
+        return true;
+    }
+}
+
 static IcliInterfaceGeometry interfaceGeometry(void) {
     [geometryLock() lock];
     NSTimeInterval now = NSProcessInfo.processInfo.systemUptime;
     if (geometryStale || !cachedGeometry.valid || now - geometryCapturedAt > 1) {
         IcliInterfaceGeometry geometry = {false, 0, 0, 1, 0};
         @autoreleasepool {
-            UIImage *image = _UICreateScreenUIImage();
+            UIImage *image = screenCaptureReady() ? _UICreateScreenUIImage() : nil;
             CGImageRef cg = image.CGImage;
             double scale = image.scale > 0 ? image.scale : 1;
             if (cg && CGImageGetWidth(cg) > 1 && CGImageGetHeight(cg) > 1) {
@@ -437,13 +459,41 @@ static int uiInterfaceOrientationForDegrees(int degrees) {
     }
 }
 
+// AXIPCClient learns that SpringBoard died from a run loop source on the main
+// thread. A long-lived caller whose main thread never runs its run loop, such
+// as a daemon, keeps the old SpringBoard's port after a respring: the client
+// still reports itself connected and every message fails with
+// MACH_SEND_INVALID_DEST. A dead port is dropped here, so the next message
+// looks up the new SpringBoard.
+static void disconnectIfServerDied(id server) {
+    if (![server respondsToSelector:@selector(client)]) {
+        return;
+    }
+    id client = [server performSelector:@selector(client)];
+    if (![client respondsToSelector:@selector(isConnected)]
+        || ![client respondsToSelector:@selector(serviceMachPort)]
+        || ![client respondsToSelector:@selector(disconnectWithError:)]
+        || !((BOOL (*)(id, SEL))objc_msgSend)(client, @selector(isConnected))) {
+        return;
+    }
+    mach_port_t port = ((mach_port_t (*)(id, SEL))objc_msgSend)(client, @selector(serviceMachPort));
+    mach_port_type_t type = 0;
+    kern_return_t kr = mach_port_type(mach_task_self(), port, &type);
+    if (kr == KERN_SUCCESS && !(type & MACH_PORT_TYPE_DEAD_NAME)) {
+        return;
+    }
+    ((BOOL (*)(id, SEL, NSError **))objc_msgSend)(client, @selector(disconnectWithError:), NULL);
+}
+
 static id axSpringBoardServer(void) {
     dlopen("/System/Library/PrivateFrameworks/AccessibilityUtilities.framework/AccessibilityUtilities", RTLD_NOW);
     Class cls = NSClassFromString(@"AXSpringBoardServer");
-    if ([cls respondsToSelector:@selector(server)]) {
-        return [cls performSelector:@selector(server)];
+    if (![cls respondsToSelector:@selector(server)]) {
+        return nil;
     }
-    return nil;
+    id server = [cls performSelector:@selector(server)];
+    disconnectIfServerDied(server);
+    return server;
 }
 
 // AXSpringBoardServer -setOrientation: is the AssistiveTouch "Rotate Screen"
@@ -461,6 +511,11 @@ static bool setCompositorOrientation(int degrees) {
     CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.3, false);
     invalidateInterfaceGeometry();
     return true;
+}
+
+int icli_interface_degrees(void) {
+    icli_private_init();
+    return springBoardInterfaceDegrees();
 }
 
 IcliRotation icli_rotation_get(void) {
@@ -648,7 +703,7 @@ static UIImage *rotateCGImage(CGImageRef src, int degrees) {
 }
 
 static UIImage *orientedScreenImage(void) {
-    UIImage *raw = _UICreateScreenUIImage();
+    UIImage *raw = screenCaptureReady() ? _UICreateScreenUIImage() : nil;
     if (!raw) {
         // The render server draws in the panel's orientation, not the UI's.
         raw = screenshotViaRenderServer();
