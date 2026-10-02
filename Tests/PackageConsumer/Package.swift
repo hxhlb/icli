@@ -10,6 +10,7 @@ let package = Package(
     products: [
         .executable(name: "IcliPackageConsumer", targets: ["IcliPackageConsumer"]),
         .executable(name: "IcliSystemConsumer", targets: ["IcliSystemConsumer"]),
+        .executable(name: "IcliLaunchConsumer", targets: ["IcliLaunchConsumer"]),
     ],
     dependencies: [.package(path: "../..")],
     targets: [
@@ -20,6 +21,10 @@ let package = Package(
         .executableTarget(
             name: "IcliSystemConsumer",
             dependencies: [.product(name: "IcliSystem", package: "icli")],
+        ),
+        .executableTarget(
+            name: "IcliLaunchConsumer",
+            dependencies: [.product(name: "IcliLaunch", package: "icli")],
         ),
     ],
 )

@@ -3,19 +3,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-// The read-only system half lives in IcliSystemPrivate and is re-exported here,
-// so this module still declares the whole private bridge.
+// The read-only system half lives in IcliSystemPrivate and the lock, launch
+// and frontmost bridge in IcliLaunchPrivate; both are re-exported here, so this
+// module still declares the whole private bridge.
 #include "IcliSystemPrivate.h"
+#include "IcliLaunchPrivate.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef struct {
-    bool locked;
-    bool screen_off;
-    bool passcode_enabled;
-} IcliLockStatus;
 
 typedef struct {
     double width;
@@ -26,7 +22,6 @@ typedef struct {
 
 void icli_private_init(void);
 
-IcliLockStatus icli_lock_status(void);
 /// Whether the device has a passcode, whether or not it is locked now.
 bool icli_passcode_set(void);
 IcliScreenMetrics icli_screen_metrics(void);
@@ -55,11 +50,8 @@ bool icli_hid_text(const char *text);
 bool icli_hid_button(const char *name);
 bool icli_wake(void);
 
-bool icli_launch_app(const char *bundle_id);
 bool icli_open_url(const char *url);
 bool icli_open_url_in_app(const char *url, const char *bundle_id);
-char *icli_frontmost_bundle_id(void);
-char *icli_frontmost_app_json(void);
 /// Live application processes reported by RunningBoard, as a JSON object.
 char *icli_runningboard_apps_json(void);
 bool icli_uninstall_app(const char *bundle_id);

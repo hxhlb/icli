@@ -10,6 +10,7 @@ let package = Package(
     products: [
         .library(name: "IcliKit", targets: ["IcliKit"]),
         .library(name: "IcliSystem", targets: ["IcliSystem"]),
+        .library(name: "IcliLaunch", targets: ["IcliLaunch"]),
         .executable(name: "icli", targets: ["icli"]),
     ],
     dependencies: [
@@ -31,10 +32,27 @@ let package = Package(
             name: "IcliSystem",
             dependencies: ["IcliSystemPrivate"],
         ),
+        // Lock state, app launch and the frontmost app, for a host that brings
+        // an app forward and needs nothing else: Foundation and the private
+        // frameworks it looks up at runtime.
+        .target(
+            name: "IcliLaunchPrivate",
+            dependencies: ["IcliSystemPrivate"],
+            publicHeadersPath: "include",
+            linkerSettings: [
+                .linkedFramework("Foundation"),
+                .linkedFramework("CoreFoundation"),
+            ],
+        ),
+        .target(
+            name: "IcliLaunch",
+            dependencies: ["IcliLaunchPrivate", "IcliSystem"],
+        ),
         .target(
             name: "IcliPrivate",
             dependencies: [
                 "IcliSystemPrivate",
+                "IcliLaunchPrivate",
                 .product(name: "ArchiveKit", package: "libarchive.xcframework"),
             ],
             publicHeadersPath: "include",
@@ -52,7 +70,7 @@ let package = Package(
         ),
         .target(
             name: "IcliKit",
-            dependencies: ["IcliPrivate", "IcliSystem"],
+            dependencies: ["IcliPrivate", "IcliSystem", "IcliLaunch"],
             linkerSettings: [.linkedLibrary("sqlite3")],
         ),
         .executableTarget(

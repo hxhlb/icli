@@ -23,7 +23,7 @@ printf '2.0\n' > "$work/deb/debian-binary"
 
 for source in Archive Deb; do
   xcrun clang -fobjc-arc -fblocks -Wall -Wextra -I"$work/include" \
-    -ISources/IcliPrivate/include -ISources/IcliSystemPrivate/include \
+    -ISources/IcliPrivate/include -ISources/IcliSystemPrivate/include -ISources/IcliLaunchPrivate/include \
     -c "Sources/IcliPrivate/$source.m" -o "$work/$source.o"
 done
 xcrun swiftc -swift-version 6 -module-cache-path "$work/modules" \

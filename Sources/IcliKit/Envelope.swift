@@ -2,8 +2,10 @@ import Darwin
 import Foundation
 import IcliPrivate
 
-// The read-only system library is part of IcliKit's own API: a consumer that
-// links IcliKit gets every IcliSystem function without a second import.
+// The read-only system library and the launch library are part of IcliKit's
+// own API: a consumer that links IcliKit gets every IcliSystem and IcliLaunch
+// function without a second import.
+@_exported import IcliLaunch
 @_exported import IcliSystem
 
 public enum Envelope {

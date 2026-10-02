@@ -53,6 +53,12 @@ output = build('IcliPackageConsumer', 'arm64-apple-ios16.0')
 # The read-only product at the package's floor: an app that deploys to iOS 15
 # can link IcliSystem, which the library product is there to allow.
 system_output = build('IcliSystemConsumer', 'arm64-apple-ios15.0')
+# The launch product at the same floor, and without the heavy half: an
+# executable that only brings an app forward must not link UIKit or ArchiveKit.
+launch_output = build('IcliLaunchConsumer', 'arm64-apple-ios15.0')
+launch_links = subprocess.check_output(['otool', '-L', str(launch_output)], text=True)
+for framework in ['UIKit', 'IOKit', 'AVFoundation', 'libarchive']:
+    assert framework not in launch_links, 'IcliLaunch consumer links ' + framework
 sources = [root / 'Package.swift'] + sorted((root / 'Sources').rglob('*')) + sorted((root / 'Resources').rglob('*'))
 source_hashes = {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
                  for path in sources if path.is_file()}
@@ -63,10 +69,14 @@ binary = work / 'IcliPackageConsumer'
 shutil.copy2(output, binary)
 system_binary = work / 'IcliSystemConsumer'
 shutil.copy2(system_output, system_binary)
+launch_binary = work / 'IcliLaunchConsumer'
+shutil.copy2(launch_output, launch_binary)
 report = {'version': version, 'product': 'IcliKit', 'dependency_kind': 'source-control exact version',
           'unsigned_consumer_binary_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
           'system_product': 'IcliSystem', 'system_minimum_ios': '15.0',
           'unsigned_system_consumer_binary_sha256': hashlib.sha256(system_binary.read_bytes()).hexdigest(),
+          'launch_product': 'IcliLaunch', 'launch_minimum_ios': '15.0',
+          'unsigned_launch_consumer_binary_sha256': hashlib.sha256(launch_binary.read_bytes()).hexdigest(),
           'source_sha256': source_hashes,
           'manifest_sha256': hashlib.sha256((root / 'Package.swift').read_bytes()).hexdigest()}
 if args.device:
@@ -97,3 +107,4 @@ if args.device:
 (root / '.build/package-consumer-verification.json').write_text(json.dumps(report, indent=2) + '\n')
 print('PASS external versioned Swift Package consumer:', binary)
 print('PASS iOS 15 IcliSystem consumer:', system_binary)
+print('PASS iOS 15 IcliLaunch consumer without UIKit or ArchiveKit:', launch_binary)

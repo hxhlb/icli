@@ -1,5 +1,6 @@
 import Darwin
 import Foundation
+import IcliLaunch
 import IcliPrivate
 import IcliSystem
 
@@ -11,11 +12,6 @@ public func searchApps(_ query: String) throws -> [String: Any] {
             || (app["name"] as? String)?.lowercased().contains(q) == true
     }
     return ["query": query, "apps": hits]
-}
-
-public func frontmostApp() -> [String: Any] {
-    (try? decodeBridgeJSON(takeCString(icli_frontmost_app_json()), "frontmost application"))
-        ?? ["bundle_id": "com.apple.springboard", "verified": false, "source": "unavailable"]
 }
 
 public func runningApps() throws -> [String: Any] {
@@ -92,19 +88,6 @@ public func appInfo(_ bundleID: String) throws -> [String: Any] {
         } catch { info["signing_error"] = String(describing: error) }
     }
     return info
-}
-
-public func launchApp(_ bundleID: String) throws -> [String: Any] {
-    _ = try appInfo(bundleID)
-    guard icli_launch_app(bundleID) else { throw IcliError.failed("launch failed: \(bundleID)") }
-    let deadline = ProcessInfo.processInfo.systemUptime + 5
-    repeat {
-        if frontmostApp()["bundle_id"] as? String == bundleID {
-            return ["launched": bundleID, "frontmost": true]
-        }
-        Thread.sleep(forTimeInterval: 0.1)
-    } while ProcessInfo.processInfo.systemUptime < deadline
-    throw IcliError.failed("app did not become frontmost: \(bundleID)")
 }
 
 public func killApp(_ bundleID: String, force: Bool) throws -> [String: Any] {

@@ -6,7 +6,7 @@ icli runs on the device itself. Use it in a device terminal or over SSH from you
 
 icli is a single, self-contained executable. It performs its work in-process using iOS frameworks and a statically linked archive library, without spawning subprocesses or invoking bootstrap tools. No additional runtime packages are required. `icli env` reports the detected environment, `spawns_processes: false`, and an empty `external_tools_used` object.
 
-For app integration, add this repository as a Swift Package dependency and select the **IcliKit** library product, or **IcliSystem** for read-only system state alone: launchd services, app registrations, tweaks, processes, a device snapshot and jetsam configuration, with an iOS 15 floor and nothing linked but Foundation. See the [Swift Package integration guide](docs/swift-package.md) for usage and the [complete entitlement inventory](docs/entitlements.md) for host signing requirements.
+For app integration, add this repository as a Swift Package dependency and select the **IcliKit** library product, or **IcliSystem** for read-only system state alone: launchd services, app registrations, tweaks, processes, a device snapshot and jetsam configuration, with an iOS 15 floor and nothing linked but Foundation. **IcliLaunch** brings an app to the front and reads the lock state and the frontmost app, with the same floor and the same links. See the [Swift Package integration guide](docs/swift-package.md) for usage and the [complete entitlement inventory](docs/entitlements.md) for host signing requirements.
 
 ## Install
 

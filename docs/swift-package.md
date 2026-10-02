@@ -1,6 +1,6 @@
 # Using IcliKit from Swift Package Manager
 
-The package exports the `IcliKit` and `IcliSystem` libraries and the `icli` executable. An iOS app or package manager can link either library and call its functions in-process. It does not need to install or launch the CLI. The `IcliKit` product includes its private Objective-C bridge and statically linked ArchiveKit dependency; Argument Parser and the CLI's embedded Info.plist belong only to the executable target. Library targets declare no unsafe build flags.
+The package exports the `IcliKit`, `IcliSystem` and `IcliLaunch` libraries and the `icli` executable. An iOS app or package manager can link either library and call its functions in-process. It does not need to install or launch the CLI. The `IcliKit` product includes its private Objective-C bridge and statically linked ArchiveKit dependency; Argument Parser and the CLI's embedded Info.plist belong only to the executable target. Library targets declare no unsafe build flags.
 
 `IcliKit` requires an iOS 16 or later arm64 device and a compatible bootstrap for privileged device operations. This is an on-device library, not a macOS host SDK. Simulator runtime is not supported or tested. For read-only system state alone, [`IcliSystem`](#the-iclisystem-product) has an iOS 15 floor and compiles for the simulator and Mac Catalyst.
 
@@ -46,7 +46,7 @@ Functions return Foundation dictionaries and throw `IcliError` or underlying Fou
 
 The API is synchronous and has not been audited for concurrent use. Serialize operations, especially package database mutations and UI interactions. Archive operations and waits can block; integrate them with your application's scheduling and lifecycle. Long-lived app hosts have only been checked for compilation through a separate consumer; the full behavior suite runs in the CLI process.
 
-`Envelope` is CLI output/exit machinery, not an app integration API: `Envelope.run` can terminate the process. Call the throwing library functions directly. The CLI's interactive lock check wraps its commands; library callers must enforce their own interaction policy, check `screenInfo()` for `locked` and `screen_off`, and respect system privacy and permission decisions.
+`Envelope` is CLI output/exit machinery, not an app integration API: `Envelope.run` can terminate the process. Call the throwing library functions directly. The CLI's interactive lock check wraps its commands; library callers must enforce their own interaction policy, check `lockState()` or `screenInfo()` for `locked` and `screen_off`, and respect system privacy and permission decisions. `launchApp` is the exception: it reports a locked device itself, as `IcliError.locked`.
 
 ## Device features
 
@@ -109,6 +109,35 @@ Entitlements belong to the calling app, exactly as for `IcliKit`, and the [inven
 | `deviceSnapshot`, `listTweaks`, `JailbreakRoot` | none | Ordinary filesystem and sysctl reads, subject to the caller's own file permissions |
 
 None of these grant root, and a matching entitlement is not proof that a platform will grant it. Everything above except the jetsam priority list has been exercised from the signed CLI; per-key necessity has not been isolated for either product.
+
+## The IcliLaunch product
+
+`IcliLaunch` is what a host needs to bring an app to the front, and nothing else: a command-line tool that wakes its own app, for example. `IcliKit` depends on it and re-exports it, and it re-exports `IcliSystem`, whose `IcliError` it throws.
+
+```swift
+import IcliLaunch
+
+let lock = lockState()                        // locked, screen_off
+let frontmost = frontmostApp()                 // bundle_id, verified, source
+let launched = try launchApp("com.example.app") // launched, frontmost
+```
+
+`launchApp` asks SpringBoardServices first and falls back to `LSApplicationWorkspace`, then waits up to five seconds for the app to be frontmost. It throws `IcliError.locked` at once when the system refuses because the device is locked or its screen is off, and `IcliError.failed` for an app LaunchServices does not know, any other refusal, or an app that never came to the front. Before 0.7.8 the LaunchServices fallback ignored the refusal, so a library caller on a locked device waited the five seconds and got "app did not become frontmost".
+
+The lock comes from SpringBoard's `com.apple.springboard.lockstate` notification and `SBGetScreenLockStatus` together: on iOS 26 `SBSGetScreenLockStatus` reads unlocked on a locked device, and MobileKeyBag answers nothing useful on a device without a passcode.
+
+| Property | Value |
+| --- | --- |
+| Deployment floor | iOS 15.0 |
+| Links | Foundation and CoreFoundation only |
+| Resolved at runtime | SpringBoardServices and RunningBoardServices through `dlopen`, `LSApplicationWorkspace` through `NSClassFromString` |
+| Not linked | UIKit, IOKit, AVFoundation, CoreLocation, ArchiveKit |
+
+| Call | Entitlement | Status |
+| --- | --- | --- |
+| `launchApp` (the launch itself), `lockState` | none | Verified on the iOS 26.4 RootHide and rootless vphones, as `mobile` and as root: the LaunchServices fallback launches with no entitlement and refuses while locked |
+| `frontmostApp`, and so `launchApp`'s wait | `com.apple.private.security.no-sandbox` | Verified on the iOS 26.4 RootHide vphone. A bootstrap executable signed without it gets no RunningBoard process handles, `frontmostApp()` reports `source: "unavailable"`, and `launchApp` launches the app and then fails after five seconds. `platform-application`, `proc_info-allow`, `task_for_pid-allow` and the launch-application keys alone do not help |
+| SpringBoardServices launch | `com.apple.springboard.launchapplications` | Optional: without it the LaunchServices fallback does the same work |
 
 ## Signing and entitlements
 
