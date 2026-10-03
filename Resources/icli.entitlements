@@ -82,6 +82,8 @@
 	<true/>
 	<key>com.apple.accessibility.api</key>
 	<true/>
+	<key>com.apple.accessibility.physicalinteraction.client</key>
+	<true/>
 	<key>com.apple.private.accessibility.look-me-up-setup</key>
 	<true/>
 	<key>com.apple.private.logging.stream</key>

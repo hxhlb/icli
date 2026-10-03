@@ -55,6 +55,7 @@ Entitlements do not make a process root. Package installation/removal, account p
 | `com.apple.springboard.orientationlock` | `true` | Orientation lock inspection and updates. |
 | `com.apple.private.accessibility.inspection` | `true` | AX element inspection and hit testing. |
 | `com.apple.accessibility.api` | `true` | Accessibility API client profile. |
+| `com.apple.accessibility.physicalinteraction.client` | `true` | Rotation and orientation lock through SpringBoard's accessibility server, which iOS 27 requires. |
 | `com.apple.private.accessibility.look-me-up-setup` | `true` | Accessibility client setup profile. |
 | `com.apple.private.webkit.pasteboard` | `true` | Pasteboard service client profile for direct CLI clipboard access. |
 | `com.apple.private.pasteboard.check-pasteboard` | `true` | Pasteboard service checks. |
