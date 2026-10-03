@@ -21,8 +21,18 @@ BOOL icli_ls_register_containerized(id workspace, NSDictionary *info, NSError **
     SEL containerized = @selector(
     registerContainerizedApplicationWithInfoDictionaries:operationUUID:requestContext:saveObserver:registrationError:);
     if (!info || ![workspace respondsToSelector:containerized]) return NO;
+    // The interface takes each plug-in as an info dictionary of its own,
+    // after the app's, and ignores plug-ins nested under _LSBundlePlugins.
+    NSMutableDictionary *app = [info mutableCopy];
+    id plugIns = app[@"_LSBundlePlugins"];
+    [app removeObjectForKey:@"_LSBundlePlugins"];
+    NSMutableArray *infos = [NSMutableArray arrayWithObject:app];
+    if ([plugIns isKindOfClass:NSDictionary.class]) {
+        for (NSString *identifier in [[plugIns allKeys] sortedArrayUsingSelector:@selector(compare:)])
+            [infos addObject:plugIns[identifier]];
+    }
     NSError *registrationError = nil;
-    [workspace registerContainerizedApplicationWithInfoDictionaries:@[info]
+    [workspace registerContainerizedApplicationWithInfoDictionaries:infos
                                                       operationUUID:[NSUUID UUID]
                                                      requestContext:nil
                                                        saveObserver:nil

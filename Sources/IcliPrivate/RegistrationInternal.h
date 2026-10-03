@@ -7,5 +7,6 @@
 /// NO. lsd refuses the call (-54) unless its embedded-registration check lets
 /// the caller through, as the vphone firmware patches it to. The call answers
 /// NO even when it registers, so success is the absence of an error; callers
-/// read the record back.
+/// read the record back. Plug-ins under the dictionary's _LSBundlePlugins are
+/// sent as info dictionaries of their own, the only shape it registers them in.
 BOOL icli_ls_register_containerized(id workspace, NSDictionary *info, NSError **error);
