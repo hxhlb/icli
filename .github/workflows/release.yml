@@ -79,7 +79,8 @@ jobs:
           tag = os.environ['RELEASE_TAG']
           notes = f'''Rootless and experimental RootHide DEBs contain the same signed arm64 executable.
 
-          - Rotation keeps working in a host that outlives a respring, such as vphoned. IcliKit kept the accessibility port of the SpringBoard it first reached, and a daemon never runs the main-thread run loop that would have noticed SpringBoard exit, so every later `setRotation` failed with "The device did not apply the requested rotation." A dead port is now dropped before each call. The `icli` command was not affected.
+          - `ui elements` no longer crashes the calling process when an element reports a NaN activation point or value. NSJSONSerialization threw on the number and took down hosts such as vphoned on `ui tap` by label; the element now falls back to its frame's centre, and a bridge result that still cannot be serialized becomes an error instead of an exception.
+          - Includes the 0.7.9 fixes: rotation keeps working in a host that outlives a respring, such as vphoned. IcliKit kept the accessibility port of the SpringBoard it first reached, and a daemon never runs the main-thread run loop that would have noticed SpringBoard exit, so every later `setRotation` failed with "The device did not apply the requested rotation." A dead port is now dropped before each call. The `icli` command was not affected.
           - A screen capture waits until the display has a size. During boot, `rotationInfo()` and the screen commands could crash the calling process inside `_UICreateScreenUIImage`.
           - IcliKit adds `interfaceRotationDegrees()`: SpringBoard's interface orientation, without a screen capture.
           - Includes the 0.7.8 **IcliLaunch** library product (`launchApp`, `lockState` and `frontmostApp`, linking Foundation alone), and `launchApp` throwing `IcliError.locked` at once on a locked device.
