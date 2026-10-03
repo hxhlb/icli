@@ -4,6 +4,8 @@
 
 Label commands take the plist's `Label` value without a domain prefix, for example `com.example.service`. Path commands take one or more plist files or directories. Mutating commands need root and the launchd privileges the jailbreak grants. Without them they fail with `requires root (launchd status …)`. Every svc command also runs while the device is locked.
 
+On RootHide, `bootstrap` and `load` rewrite each plist in place before handing it to launchd, as RootHide's `launchctl` does: the program (`Program` or `ProgramArguments[0]`) and the other paths launchd itself opens get the jbroot in front, `/rootfs/x` becomes the system's `/x`, an earlier `.jbroot-…` is replaced with the current one, and `__Patched` is set. Plists outside the jbroot, a program under `/rootfs/`, and a plist already patched for the current root are left alone. `bootout` and `unload` never rewrite, and rootless and rootful use plists as written. Check a plist with `svc paths` before loading it.
+
 | Command | Purpose | Key flags | Root |
 | --- | --- | --- | --- |
 | `svc list [<label>]` | All visible services with PID and last exit status, or one service's status; launchd's full list carries no program path, so only the one-label form reports `program` | | no |
@@ -11,9 +13,10 @@ Label commands take the plist's `Label` value without a domain prefix, for examp
 | `svc print <label>` | launchd's full description | | no |
 | `svc print-disabled` | Persistent disabled overrides | | no |
 | `svc dump` | Every service with its description in one document; refusals go under `errors` | | no |
-| `svc bootstrap <paths…>` | Load (modern name) | | required |
+| `svc paths <paths…>` | Every path launchd reads from each plist (program, directories, standard streams, `WatchPaths`, `QueueDirectories`, path environment variables, `KeepAlive.PathState`, socket and fsevents paths): `written`, `launchd` (as launchd opens it on this bootstrap), `exists`, and a `hint`/`suggested` spelling when only the other side of the jbroot exists. On RootHide also `system_job` and `load_rewrites`. Reads only | | no |
+| `svc bootstrap <paths…>` | Load (modern name). On RootHide, rewrites each plist first; the result lists them under `patched` | | required |
 | `svc bootout <paths…>` | Unload (modern name) | | required |
-| `svc load <paths…>` | Load (legacy name) | `--enable` (like `launchctl load -w`) | required |
+| `svc load <paths…>` | Load (legacy name); rewrites on RootHide like `bootstrap` | `--enable` (like `launchctl load -w`) | required |
 | `svc unload <paths…>` | Unload (legacy name) | `--disable` (like `launchctl unload -w`) | required |
 | `svc enable <label>` / `svc disable <label>` | Persistent override; does not start or stop the service | | required |
 | `svc start <label>` / `svc stop <label>` | Request a start or stop; check `svc status` afterwards (KeepAlive can restart it) | | required |

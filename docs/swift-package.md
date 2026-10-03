@@ -87,7 +87,7 @@ let jetsam = try jetsamSnapshot()             // bands, jetsam property lists, m
 let root = JailbreakRoot.current
 ```
 
-Also `serviceStatus(_:)`, `printService(_:)` and the shared `IcliError`, `takeCString(_:)` and `decodeBridgeJSON(_:_:)`. Nothing in this product changes system state: service loading, enabling, starting, stopping, signalling and `setenv`, app registration, installation and every device setting stay in `IcliKit`. `servicesDump()` records a label launchd refuses to describe in its `errors` map and returns the rest; `jetsamSnapshot()` reports `priorities_error` instead of throwing when the kernel refuses the priority list.
+Also `serviceStatus(_:)`, `printService(_:)`, `servicePlistPaths(_:)` (what `svc paths` prints, read-only), the pure `LaunchdPlistPaths` (RootHide launchctl's plist rewrite) and the shared `IcliError`, `takeCString(_:)` and `decodeBridgeJSON(_:_:)`. Nothing in this product changes system state: service loading, enabling, starting, stopping, signalling and `setenv`, app registration, installation and every device setting stay in `IcliKit`. `servicesDump()` records a label launchd refuses to describe in its `errors` map and returns the rest; `jetsamSnapshot()` reports `priorities_error` instead of throwing when the kernel refuses the priority list.
 
 | Property | Value |
 | --- | --- |

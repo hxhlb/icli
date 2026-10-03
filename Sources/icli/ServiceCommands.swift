@@ -5,12 +5,12 @@ import IcliKit
 struct Svc: ParsableCommand {
     static var configuration = CommandConfiguration(
         abstract: "Inspect and manage launchd services.",
-        discussion: "Use plist paths with bootstrap, bootout, load, and unload. For commands that accept a label, use the plist's Label value without a domain prefix.\n\nEnable and disable set persistent overrides; they do not start or stop a process. Start and stop request a process change; check status afterward. A service with KeepAlive enabled may restart after stop.\n\nService changes require root and the launchd privileges granted by your jailbreak. Root alone may not provide every required privilege.\n\nExamples:\n  icli svc list\n  icli svc status com.example.service\n  icli svc start com.example.service\n  icli svc stop com.example.service\n\nRun 'icli svc <command> --help' for its arguments.",
+        discussion: "Use plist paths with bootstrap, bootout, load, unload, and paths. On RootHide, bootstrap and load first rewrite the paths launchd reads into the jbroot, in place, as RootHide's launchctl does; 'paths' shows the result without writing. For commands that accept a label, use the plist's Label value without a domain prefix.\n\nEnable and disable set persistent overrides; they do not start or stop a process. Start and stop request a process change; check status afterward. A service with KeepAlive enabled may restart after stop.\n\nService changes require root and the launchd privileges granted by your jailbreak. Root alone may not provide every required privilege.\n\nExamples:\n  icli svc list\n  icli svc status com.example.service\n  icli svc start com.example.service\n  icli svc stop com.example.service\n\nRun 'icli svc <command> --help' for its arguments.",
         subcommands: [
             Bootstrap.self, Bootout.self, Load.self, Unload.self,
             Enable.self, Disable.self, Start.self, Stop.self,
             Kill.self, Remove.self, List.self, Print.self, PrintDisabled.self,
-            Dump.self, Getenv.self, Setenv.self, Unsetenv.self, Status.self,
+            Dump.self, Paths.self, Getenv.self, Setenv.self, Unsetenv.self, Status.self,
         ],
     )
 }
@@ -159,6 +159,18 @@ extension Svc {
         @OptionGroup var output: OutputOptions
         func run() {
             emit(allowWhenLocked: true, output) { try servicesDump() }
+        }
+    }
+
+    struct Paths: ParsableCommand {
+        static var configuration = CommandConfiguration(
+            abstract: "Show the paths launchd reads from service plists, as launchd will open them.",
+            discussion: "Lists the program, working and root directories, standard streams, WatchPaths, QueueDirectories, path environment variables, KeepAlive PathState, socket paths and fsevents paths of each plist. 'written' is the plist's value; 'launchd' is the path launchd opens on this bootstrap. On RootHide, a load rewrites these paths into the jbroot first, and '/rootfs/x' names the system's '/x'; elsewhere they are used as written. When a path does not exist but its spelling on the other side of the jbroot does, 'hint' says what to write. Reads only; nothing is loaded or rewritten.",
+        )
+        @OptionGroup var output: OutputOptions
+        @Argument(help: servicePathsHelp) var paths: [String]
+        func run() {
+            emit(allowWhenLocked: true, output) { try servicePlistPaths(paths) }
         }
     }
 

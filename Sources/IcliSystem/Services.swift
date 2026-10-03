@@ -177,3 +177,66 @@ public func launchdEnvironment(_ key: String) throws -> [String: Any] {
     }
     return payload
 }
+
+/// Service plist arguments as absolute paths, each of which must exist.
+/// Shared with IcliKit's load and unload.
+public func absoluteServicePaths(_ paths: [String]) throws -> [String] {
+    guard !paths.isEmpty else { throw IcliError.failed("at least one plist or directory path is required") }
+    let absolute = paths.map { ($0 as NSString).standardizingPath }
+        .map { $0.hasPrefix("/") ? $0 : FileManager.default.currentDirectoryPath + "/" + $0 }
+    for path in absolute where !FileManager.default.fileExists(atPath: path) {
+        throw IcliError.failed("path not found: \(path)")
+    }
+    return absolute
+}
+
+/// The plist itself, or every `.plist` directly inside a directory, sorted.
+public func launchdPlists(at path: String) -> [String] {
+    var isDirectory: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else { return [] }
+    if !isDirectory.boolValue {
+        return [path]
+    }
+    let names = (try? FileManager.default.contentsOfDirectory(atPath: path)) ?? []
+    return names.filter { $0.hasSuffix(".plist") }.sorted().map { (path as NSString).appendingPathComponent($0) }
+}
+
+/// A launchd job's property list and the format it is stored in, or nil when
+/// the file is unreadable or is not a dictionary.
+public func readLaunchdJob(_ path: String) -> (job: [String: Any], format: PropertyListSerialization.PropertyListFormat)? {
+    guard let data = FileManager.default.contents(atPath: path) else { return nil }
+    var format = PropertyListSerialization.PropertyListFormat.xml
+    let object = try? PropertyListSerialization.propertyList(from: data, options: [], format: &format)
+    return (object as? [String: Any]).map { ($0, format) }
+}
+
+/// Every path launchd reads from each plist, as written and as launchd will
+/// open it on this bootstrap, with whether it exists. Read-only.
+public func servicePlistPaths(_ paths: [String]) throws -> [String: Any] {
+    let absolute = try absoluteServicePaths(paths)
+    let bootstrap = JailbreakRoot.current
+    let rootHide = bootstrap.layout == .roothide
+    var plists: [[String: Any]] = []
+    var errors: [String: String] = [:]
+    for plist in absolute.flatMap(launchdPlists(at:)) {
+        guard let job = readLaunchdJob(plist)?.job else {
+            errors[plist] = "not a readable property list dictionary"
+            continue
+        }
+        plists.append(LaunchdPlistPaths.report(job, plistPath: plist, root: bootstrap.jbroot, rootHide: rootHide, exists: pathExists))
+    }
+    return [
+        "layout": bootstrap.layout?.rawValue ?? NSNull(),
+        "jbroot": bootstrap.jbroot,
+        "plists": plists,
+        "errors": errors,
+    ]
+}
+
+/// true or false when stat(2) can tell; nil when it is refused, such as a
+/// parent directory this user cannot search.
+private func pathExists(_ path: String) -> Bool? {
+    var info = stat()
+    if stat(path, &info) == 0 { return true }
+    return errno == ENOENT || errno == ENOTDIR ? false : nil
+}

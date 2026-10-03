@@ -1023,7 +1023,7 @@ def package_metadata(d):
     'svc bootstrap', 'svc bootout', 'svc load', 'svc unload', 'svc enable',
     'svc disable', 'svc start', 'svc stop', 'svc kill',
     'svc remove', 'svc list', 'svc print', 'svc print-disabled', 'svc getenv',
-    'svc setenv', 'svc unsetenv', 'svc status',
+    'svc setenv', 'svc unsetenv', 'svc status', 'svc paths',
 ])
 def launchd_services(d):
     label = 'dev.owngoal.icli.testdaemon'
@@ -1038,8 +1038,11 @@ def launchd_services(d):
     staged, target, copies = d.sh('/tmp/icli-daemon.plist'), d.sh(plist), d.sh(folder)
     assert d.run(['sh', '-c', f'cp {staged} {target} && chown root:wheel {target} && chmod 644 {target} && mkdir -p {copies} && cp {target} {copies}/'], sudo=True).returncode == 0
     try:
+        program = d.cli('svc', 'paths', plist)['plists'][0]['paths'][0]
+        assert program['launchd'] == d.jb('/usr/bin/sleep') and program['exists'] is True, program
         loaded = d.cli('svc', 'bootstrap', plist, sudo=True)
         assert loaded['verified'] and loaded['services'][0]['label'] == label, loaded
+        assert ('patched' in loaded) == (d.layout == 'roothide'), loaded
         time.sleep(1)
         status = d.cli('svc', 'status', label)
         assert status['loaded'] and status['running'] and status['pid'] > 0 and status['program'] == d.jb('/usr/bin/sleep'), status

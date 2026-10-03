@@ -62,6 +62,9 @@ jobs:
       - name: Archive names in the C locale
         run: ./scripts/test-archive-locale.sh
 
+      - name: Launchd plist paths and the RootHide rewrite
+        run: ./scripts/test-launchd-plist-paths.sh
+
       - name: Build and verify both DEBs
         run: ./scripts/check-packages.sh
 

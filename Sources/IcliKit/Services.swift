@@ -13,12 +13,9 @@ private func decode(_ raw: String?) throws -> [String: Any] {
 /// Loads (or unloads) launchd property lists or directories of them. Files
 /// that launchd rejects are reported per path; nothing is guessed.
 public func loadServices(_ paths: [String], load: Bool, override: Bool) throws -> [String: Any] {
-    guard !paths.isEmpty else { throw IcliError.failed("at least one plist or directory path is required") }
-    let absolute = paths.map { ($0 as NSString).standardizingPath }
-        .map { $0.hasPrefix("/") ? $0 : FileManager.default.currentDirectoryPath + "/" + $0 }
-    for path in absolute where !FileManager.default.fileExists(atPath: path) {
-        throw IcliError.failed("path not found: \(path)")
-    }
+    let absolute = try absoluteServicePaths(paths)
+    let rootHide = load && JailbreakRoot.current.layout == .roothide
+    let patched = rootHide ? try patchRootHidePlists(absolute) : []
     var cStrings = absolute.map { UnsafePointer<CChar>(strdup($0)) }
     defer { cStrings.forEach { free(UnsafeMutablePointer(mutating: $0)) } }
     let result = try decode(cStrings.withUnsafeMutableBufferPointer { buffer in
@@ -45,6 +42,9 @@ public func loadServices(_ paths: [String], load: Bool, override: Bool) throws -
         "errors": errors,
         "verified": true,
     ]
+    if rootHide {
+        payload["patched"] = patched
+    }
     if !errors.isEmpty {
         // launchd reports EEXIST/EALREADY (load) or 113 ENOSERVICE (unload) when a
         // service was already in the requested state.
@@ -62,14 +62,59 @@ public func loadServices(_ paths: [String], load: Bool, override: Bool) throws -
     return payload
 }
 
-private func launchdPlists(at path: String) -> [String] {
-    var isDirectory: ObjCBool = false
-    guard FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory) else { return [] }
-    if !isDirectory.boolValue {
-        return [path]
+/// RootHide's launchctl rewrites a plist's paths in place before it
+/// bootstraps it (see LaunchdPlistPaths); icli speaks to launchd itself, so
+/// it makes the same rewrite. Returns the plists it wrote. A plist launchd
+/// cannot parse is left for launchd to refuse.
+private func patchRootHidePlists(_ paths: [String]) throws -> [String] {
+    let root = JailbreakRoot.current.jbroot
+    var patched: [String] = []
+    for plist in paths.flatMap(launchdPlists(at:)) {
+        guard let (job, format) = readLaunchdJob(plist),
+              let prepared = LaunchdPlistPaths.prepared(job, plistPath: plist, root: root)
+        else { continue }
+        let data: Data
+        do {
+            data = try PropertyListSerialization.data(fromPropertyList: prepared, format: format, options: 0)
+        } catch {
+            throw IcliError.failed("cannot encode the RootHide paths of \(plist): \(error.localizedDescription)")
+        }
+        try replaceKeepingOwnership(plist, with: data)
+        patched.append(plist)
     }
-    let names = (try? FileManager.default.contentsOfDirectory(atPath: path)) ?? []
-    return names.filter { $0.hasSuffix(".plist") }.sorted().map { (path as NSString).appendingPathComponent($0) }
+    return patched
+}
+
+/// Writes `data` over the file `path` resolves to through a temporary file
+/// beside it, keeping its owner and mode: launchd refuses a daemon plist that
+/// is not root-owned or is writable by others.
+private func replaceKeepingOwnership(_ path: String, with data: Data) throws {
+    let target = (path as NSString).resolvingSymlinksInPath
+    var original = stat()
+    guard stat(target, &original) == 0 else {
+        throw IcliError.failed("cannot read \(target): \(String(cString: strerror(errno)))")
+    }
+    var template = Array(((target as NSString).deletingLastPathComponent + "/.icli-plist.XXXXXX").utf8CString)
+    let fd = mkstemp(&template)
+    guard fd >= 0 else { throw IcliError.failed("cannot write beside \(target): \(String(cString: strerror(errno)))") }
+    let temporary = String(cString: template)
+    var written = data.withUnsafeBytes { buffer in
+        var offset = 0
+        while offset < buffer.count {
+            let count = write(fd, buffer.baseAddress! + offset, buffer.count - offset)
+            if count <= 0 { return false }
+            offset += count
+        }
+        return true
+    }
+    written = written && fchown(fd, original.st_uid, original.st_gid) == 0
+        && fchmod(fd, original.st_mode & 0o7777) == 0 && fsync(fd) == 0
+    let failure = String(cString: strerror(errno))
+    close(fd)
+    guard written, rename(temporary, target) == 0 else {
+        unlink(temporary)
+        throw IcliError.failed("cannot rewrite \(target) for RootHide: \(written ? String(cString: strerror(errno)) : failure)")
+    }
 }
 
 /// Persistent enable/disable override for a label in the system domain.
