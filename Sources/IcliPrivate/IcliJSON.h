@@ -3,8 +3,11 @@
 #include <string.h>
 
 /// A malloc'd JSON string for the bridge's `*_json` functions, or NULL when
-/// the value cannot be serialized. The caller frees it.
+/// the value cannot be serialized. The caller frees it. The validity check
+/// comes first because NSJSONSerialization throws, rather than failing, on a
+/// NaN or infinite number.
 static inline char *icli_json(NSDictionary *value) {
+    if (![NSJSONSerialization isValidJSONObject:value]) return NULL;
     NSData *data = [NSJSONSerialization dataWithJSONObject:value options:0 error:nil];
     return data ? strndup(data.bytes, data.length) : NULL;
 }

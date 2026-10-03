@@ -122,8 +122,12 @@ static NSDictionary *serializeElement(AXElement element, BOOL fixedSpace) {
     IcliScreenMetrics metrics = icli_screen_metrics();
     CGRect screen = CGRectMake(0, 0, metrics.width, metrics.height);
     CGPoint point = CGPointMake(CGRectGetMidX(frame), CGRectGetMidY(frame));
+    // An element can report a NaN activation point; NSJSONSerialization throws on
+    // one, which takes down a host such as vphoned. Keep the frame's centre then.
     id pointValue = attribute(element, 2007);
-    if (pointValue) getAXValue((__bridge CFTypeRef)pointValue, 1, &point);
+    CGPoint activation;
+    if (pointValue && getAXValue((__bridge CFTypeRef)pointValue, 1, &activation)
+        && isfinite(activation.x) && isfinite(activation.y)) point = activation;
     if (fixedSpace) {
         frame = interfaceRect(frame);
         double x, y;
@@ -133,7 +137,8 @@ static NSDictionary *serializeElement(AXElement element, BOOL fixedSpace) {
     return @{
         @"label": [label isKindOfClass:NSString.class] ? label : @"",
         @"identifier": [identifier isKindOfClass:NSString.class] ? identifier : @"",
-        @"value": [text isKindOfClass:NSString.class] || [text isKindOfClass:NSNumber.class] ? text : @"",
+        @"value": [text isKindOfClass:NSString.class]
+            || ([text isKindOfClass:NSNumber.class] && isfinite([text doubleValue])) ? text : @"",
         @"role": role,
         @"traits": @(traits),
         @"enabled": @(enabled),
