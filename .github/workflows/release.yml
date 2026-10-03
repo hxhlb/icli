@@ -38,11 +38,16 @@ jobs:
         run: |
           python3 - <<'PY'
           import os, plistlib, re
+          from pathlib import Path
           tag = os.environ['RELEASE_TAG']
           assert re.fullmatch(r'v?[0-9]+\.[0-9]+\.[0-9]+', tag), 'expected a release version tag'
           with open('Resources/Info.plist', 'rb') as source:
               version = plistlib.load(source)['CFBundleShortVersionString']
           assert tag.removeprefix('v') == version, 'tag and Info.plist version differ'
+          # Each release's notes say what changed in that release only.
+          notes = Path(f'docs/releases/{version}.md')
+          assert notes.is_file(), f'{notes} is missing'
+          assert notes.read_text().strip(), f'{notes} is empty'
           PY
           xcodebuild -version
           xcrun --sdk iphoneos --show-sdk-version
@@ -77,27 +82,11 @@ jobs:
               hashlib.sha256(path.read_bytes()).hexdigest() + '  ' + path.name + '\n' for path in files))
           commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
           tag = os.environ['RELEASE_TAG']
+          changes = Path(f"docs/releases/{tag.removeprefix('v')}.md").read_text().strip()
           notes = f'''Rootless and experimental RootHide DEBs contain the same signed arm64 executable.
 
-          - Long-running hosts such as vphoned. Every screen capture leaked a display-sized image, because `_UICreateScreenUIImage` returns a retained object that ARC took as unowned; taps, swipes and screenshots all capture, so a host's memory grew until jetsam killed it. The SpringBoard frontmost-app query and the auto-brightness read leaked the same way, and the RunningBoard scan behind `frontmostApp()` now drains its own autorelease pool.
-          - The rest of the NaN class from 0.7.10. Every module's JSON goes through an `isValidJSONObject` check, and process, jetsam, IORegistry, launchd and archive names that are not UTF-8 no longer put nil into a dictionary literal, which threw an exception a Swift host cannot catch. `jsonSafe(_:)`, public in IcliSystem, turns plist and preference values into JSON-safe ones (a NaN real becomes `"nan"`); `readPreference`, `readPlist`, `appInfo`, `appBinaryInfo` and `jetsamSnapshot` use it, and `Envelope.printJSON` no longer aborts on such a value.
-          - The accessibility switches are read again on every query, so a host keeps working after something else turns them off. `restoreAccessibilitySwitches()` turns them back off for a host that does not exit.
-          - `JailbreakRoot.current` looks for the bootstrap again when it found none or its jbroot is gone, so a daemon started before the bootstrap was installed sees it.
-          - Waits that ran the current run loop (brightness, rotation, respring, audio buttons, syslog capture) now also wait on a worker thread with no run loop. The syslog capture no longer spins a core, and pressing mute from a worker no longer toggles it twice. Developer Mode requests to amfid time out after 10 seconds instead of waiting forever.
-          - Packages: concurrent installs and removals in one process are serialized, since dpkg's lock is per process, and status is read after the lock is taken. data.tar is streamed instead of read into memory. A hard link in data.tar installs as a link, not an empty file. A control member named `list` or below the top level is not taken as a control file. Extraction checks a path before creating its parent directories and uses `lchown`, so a symlink in the archive cannot redirect either. A failed status write removes its temporary file, and MD5 sums of files over 4 GiB are correct.
-          - An IPA upgrade whose rollback also fails keeps the previous app and reports where it is.
-          - Includes the 0.7.10 fix: `ui elements` no longer crashes the calling process when an element reports a NaN activation point or value.
-          - Includes the 0.7.9 fixes: rotation keeps working in a host that outlives a respring, such as vphoned. IcliKit kept the accessibility port of the SpringBoard it first reached, and a daemon never runs the main-thread run loop that would have noticed SpringBoard exit, so every later `setRotation` failed with "The device did not apply the requested rotation." A dead port is now dropped before each call. The `icli` command was not affected.
-          - A screen capture waits until the display has a size. During boot, `rotationInfo()` and the screen commands could crash the calling process inside `_UICreateScreenUIImage`.
-          - IcliKit adds `interfaceRotationDegrees()`: SpringBoard's interface orientation, without a screen capture.
-          - Includes the 0.7.8 **IcliLaunch** library product (`launchApp`, `lockState` and `frontmostApp`, linking Foundation alone), and `launchApp` throwing `IcliError.locked` at once on a locked device.
-          - Includes the 0.7.7 location fix: `location set` and IcliKit's `simulateLocation` accept a vertical accuracy of -1, which marks the altitude unknown.
-          - Includes the 0.7.6 IPA fix: IPAs zipped on a Mac install. Extraction skips `__MACOSX` and AppleDouble `._` files, as a device does.
-          - Includes the 0.7.5 archive name fix: UTF-8 entry names in IPAs and debs read correctly in the C locale that launchd daemons start in. Reported and first fixed in vphoned by Yanni Pang (Lakr233/vphone-cli#530).
-          - Includes the 0.7.4 launchd reply release: a socket-activated daemon loaded through IcliKit's `loadServices` no longer keeps its port bound after it is unloaded.
-          - Includes the 0.7.3 capture cleanup: `screen describe`, `screen ocr` and `screen shot` remove the temporary JPEG they capture into on every path out.
-          - Includes the 0.7.2 accessibility switch restore: `ui tree`, `ui at` and `screen describe` need `_AXSApplicationAccessibilityEnabled` and `_AXSAutomationEnabled`, which are system-wide and stored in the `com.apple.Accessibility` preference domain as `ApplicationAccessibilityEnabled` and `AutomationEnabled`, and versions before 0.7.2 turned them on and never turned them back off. icli reads their values first, turns on only what is missing, and restores them when it exits. A device whose last run was 0.7.1 or earlier may still have them on: `icli prefs read com.apple.Accessibility ApplicationAccessibilityEnabled` reads the stored value, and `icli prefs delete` clears it.
-          - Includes the 0.7.2 `app frontmost` fallback to RunningBoard's `UserInteractiveFocal` CPU role, the 0.7.1 launchd service list fix and the 0.7.0 `notify post` and `notify get` commands.
+          {changes}
+
           - Dependencies stay minimum versions: libarchive.xcframework from 1.0.0 (the `ArchiveKit` product) and Swift Argument Parser from 1.3.1.
           - Swift Package library products: **IcliKit**, **IcliSystem** and **IcliLaunch**.
           - CI checks architecture, firmware-only package dependency, entitlements, system-linked libraries, package ownership, matching binaries, and absence of process-launch imports.
