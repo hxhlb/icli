@@ -1,4 +1,5 @@
 #import "IcliPrivate.h"
+#import "Settle.h"
 #import "IcliJSON.h"
 #import <Foundation/Foundation.h>
 #import <CoreFoundation/CoreFoundation.h>
@@ -49,7 +50,7 @@ bool icli_springboard_relaunch(void) {
     id service = ((id (*)(Class, SEL))objc_msgSend)(serviceClass, @selector(sharedService));
     if (!action || ![service respondsToSelector:sendSelector]) return false;
     ((void (*)(id, SEL, NSSet *, id))objc_msgSend)(service, sendSelector, [NSSet setWithObject:action], nil);
-    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.5, false);
+    icli_settle(0.5);
     return true;
 }
 

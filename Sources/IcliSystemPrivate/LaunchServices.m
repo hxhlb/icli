@@ -1,4 +1,5 @@
 #import "IcliSystemPrivate.h"
+#import "SystemJSON.h"
 #import <Foundation/Foundation.h>
 #import <dlfcn.h>
 #import <stdlib.h>
@@ -87,8 +88,13 @@ NSDictionary *icli_ls_app_dictionary(id proxy) {
         d[@"running"] = @([running boolValue]);
     }
     id schemes = icli_ls_value(proxy, @"claimedURLSchemes");
-    if ([schemes isKindOfClass:[NSArray class]] && [schemes count] > 0) {
-        d[@"schemes"] = schemes;
+    if ([schemes isKindOfClass:[NSArray class]]) {
+        NSMutableArray *names = [NSMutableArray array];
+        for (id scheme in schemes) {
+            NSString *name = icli_ls_string(scheme);
+            if (name) [names addObject:name];
+        }
+        if (names.count) d[@"schemes"] = names;
     }
     return d;
 }
@@ -103,9 +109,5 @@ char *icli_apps_json(void) {
     for (id proxy in apps) {
         [out addObject:icli_ls_app_dictionary(proxy)];
     }
-    NSData *json = [NSJSONSerialization dataWithJSONObject:out options:0 error:nil];
-    if (!json) {
-        return strdup("[]");
-    }
-    return strndup(json.bytes, json.length);
+    return icli_system_json(out) ?: strdup("[]");
 }

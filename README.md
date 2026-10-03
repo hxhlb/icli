@@ -271,6 +271,8 @@ python3 scripts/check-package-consumer.py --device
 python3 scripts/assemble-release.py
 ```
 
+`scripts/host-soak.py` runs `Tests/HostSoak` on the same device: one long-lived process that calls IcliKit the way a daemon such as vphoned does, from worker threads and thousands of times, and checks memory after screen captures, the accessibility switches, waits on threads without a run loop, and values JSON cannot carry. Pass `--root` to run it as root, as a launch daemon runs.
+
 `assemble-release.py` archives the binary, packages, fixtures, integration documentation, and reports under `.build/release/<version>/` and regenerates `docs/rootless-acceptance.md` from the run. It verifies that the full run completed, the tested runner and binary still match, and the package consumer passed. It exits nonzero if any case failed or any command was not executed.
 
 The runner defaults to `mobile@127.0.0.1:2333`. Override `ICLI_SSH_HOST`, `ICLI_SSH_PORT`, `ICLI_SSH_USER`, or `ICLI_BINARY` as needed. Use SSH keys or set `ICLI_SSH_PASSWORD`; password-based SSH requires `sshpass` on the Mac. The account must also be able to run the test's `sudo` commands without an interactive prompt.

@@ -7,6 +7,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/stat.h>
 #include <xlocale.h>
 
 static const uint64_t kArchiveByteLimit = 1024ULL * 1024 * 1024;
@@ -31,10 +32,26 @@ char *icli_archive_with_utf8_names(char *(^body)(void)) {
 
 /// Parent directories must resolve inside the staging root, so an earlier
 /// symlink entry cannot redirect a later file outside it.
-static BOOL parentInsideRoot(NSString *path, NSString *realRootPrefix) {
+static BOOL resolvesInsideRoot(NSString *directory, NSString *realRootPrefix) {
     char resolved[PATH_MAX];
-    if (!realpath(path.stringByDeletingLastPathComponent.fileSystemRepresentation, resolved)) return NO;
-    return [[@(resolved) stringByAppendingString:@"/"] hasPrefix:realRootPrefix];
+    if (!realpath(directory.fileSystemRepresentation, resolved)) return NO;
+    NSString *real = [NSString stringWithUTF8String:resolved];
+    return real && [[real stringByAppendingString:@"/"] hasPrefix:realRootPrefix];
+}
+
+static BOOL parentInsideRoot(NSString *path, NSString *realRootPrefix) {
+    return resolvesInsideRoot(path.stringByDeletingLastPathComponent, realRootPrefix);
+}
+
+/// The deepest part of `directory` that already exists must resolve inside
+/// the root before any missing part is created, or an earlier symlink entry
+/// could have the extractor create directories outside it.
+static BOOL existingAncestorInsideRoot(NSString *directory, NSString *realRootPrefix) {
+    NSString *existing = directory;
+    struct stat info;
+    while (existing.length > 1 && lstat(existing.fileSystemRepresentation, &info) != 0)
+        existing = existing.stringByDeletingLastPathComponent;
+    return resolvesInsideRoot(existing, realRootPrefix);
 }
 
 NSDictionary *icli_archive_entry_info(struct archive_entry *entry, NSString *path) {
@@ -58,7 +75,9 @@ NSString *icli_archive_extract(
 ) {
     char resolvedRoot[PATH_MAX];
     if (!realpath(destination.fileSystemRepresentation, resolvedRoot)) return @(strerror(errno));
-    NSString *realRootPrefix = [@(resolvedRoot) stringByAppendingString:@"/"];
+    NSString *realRoot = [NSString stringWithUTF8String:resolvedRoot];
+    if (!realRoot) return @"staging directory path is not UTF-8";
+    NSString *realRootPrefix = [realRoot stringByAppendingString:@"/"];
     // Entry paths are standardized the same way as the root, so the prefix
     // test is textual; symlink escapes are caught by parentInsideRoot.
     NSString *root = destination.stringByStandardizingPath;
@@ -87,6 +106,10 @@ NSString *icli_archive_extract(
         }
         if (![path hasPrefix:rootPrefix]) { failure = @"archive entry escapes its staging directory"; break; }
         NSError *error = nil;
+        if (!existingAncestorInsideRoot(path.stringByDeletingLastPathComponent, realRootPrefix)) {
+            failure = @"archive entry escapes its staging directory";
+            break;
+        }
         if (![NSFileManager.defaultManager createDirectoryAtPath:path.stringByDeletingLastPathComponent withIntermediateDirectories:YES attributes:@{NSFilePosixPermissions:@0755} error:&error]) { failure = error.localizedDescription; break; }
         if (!parentInsideRoot(path, realRootPrefix)) {
             failure = @"archive entry escapes its staging directory";
@@ -135,8 +158,10 @@ NSString *icli_archive_extract(
             if (close(fd) && !failure) failure = @(strerror(errno));
             if (!failure) chmod(path.fileSystemRepresentation, archive_entry_perm(entry) & 07777 ?: 0644);
         } else { failure = @"archive contains an unsupported special file"; }
+        // lchown: a directory entry may name an existing symlink, and chown
+        // would follow it to change the owner of whatever it points at.
         if (!failure && geteuid() == 0 && type != AE_IFLNK)
-            (void)chown(
+            (void)lchown(
                 path.fileSystemRepresentation,
                 (uid_t)archive_entry_uid(entry),
                 (gid_t)archive_entry_gid(entry)

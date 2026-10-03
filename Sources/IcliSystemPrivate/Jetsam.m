@@ -1,4 +1,5 @@
 #import "IcliSystemPrivate.h"
+#import "SystemJSON.h"
 #import <Foundation/Foundation.h>
 #import <errno.h>
 #import <string.h>
@@ -22,30 +23,36 @@ typedef struct {
     uint32_t state;
 } IcliMemorystatusPriorityEntry;
 
-static char *jetsamJSON(NSDictionary *value) {
-    NSData *data = [NSJSONSerialization dataWithJSONObject:value options:0 error:nil];
-    return data ? strndup(data.bytes, data.length) : NULL;
-}
-
 /// Every process in a jetsam band, or nil with `error` describing why not.
+/// The kernel answers EINVAL when the buffer is smaller than the list, which
+/// grows whenever a process starts between the size query and the read, so
+/// the buffer has slack and a short list is retried.
 static NSArray *priorityList(NSString **error) {
-    errno = 0;
-    int size = memorystatus_control(MEMORYSTATUS_CMD_GET_PRIORITY_LIST, 0, 0, NULL, 0);
-    if (size <= 0) {
-        *error = @(strerror(errno ?: EINVAL));
-        return nil;
-    }
-    IcliMemorystatusPriorityEntry *entries = calloc(1, (size_t)size);
-    if (!entries) {
-        *error = @"priority list allocation failed";
-        return nil;
-    }
-    errno = 0;
-    int written = memorystatus_control(MEMORYSTATUS_CMD_GET_PRIORITY_LIST, 0, 0, entries, (size_t)size);
-    if (written <= 0) {
-        *error = @(strerror(errno ?: EINVAL));
+    IcliMemorystatusPriorityEntry *entries = NULL;
+    int written = 0;
+    for (int attempt = 0; attempt < 3; attempt++) {
+        errno = 0;
+        int size = memorystatus_control(MEMORYSTATUS_CMD_GET_PRIORITY_LIST, 0, 0, NULL, 0);
+        if (size <= 0) {
+            *error = @(strerror(errno ?: EINVAL));
+            return nil;
+        }
+        size_t capacity = (size_t)size + 64 * sizeof(*entries);
+        entries = calloc(1, capacity);
+        if (!entries) {
+            *error = @"priority list allocation failed";
+            return nil;
+        }
+        errno = 0;
+        written = memorystatus_control(MEMORYSTATUS_CMD_GET_PRIORITY_LIST, 0, 0, entries, capacity);
+        if (written > 0) break;
+        int failure = errno ?: EINVAL;
         free(entries);
-        return nil;
+        entries = NULL;
+        if (failure != EINVAL || attempt == 2) {
+            *error = @(strerror(failure));
+            return nil;
+        }
     }
     NSMutableArray *rows = [NSMutableArray array];
     for (size_t i = 0; i < (size_t)written / sizeof(*entries); i++) {
@@ -53,7 +60,7 @@ static NSArray *priorityList(NSString **error) {
         proc_name(entries[i].pid, name, sizeof(name));
         [rows addObject:@{
             @"pid": @(entries[i].pid),
-            @"name": @(name),
+            @"name": icli_system_string(name, sizeof(name)),
             @"priority": @(entries[i].priority),
             @"limit_mb": @(entries[i].limit),
             @"state": @(entries[i].state),
@@ -87,5 +94,5 @@ char *icli_jetsam_json(void) {
     addSysctl(memory, @"memorystatus_level", "kern.memorystatus_level");
     addSysctl(memory, @"memorystatus_vm_pressure_level", "kern.memorystatus_vm_pressure_level");
     result[@"memory"] = memory;
-    return jetsamJSON(result);
+    return icli_system_json(result);
 }

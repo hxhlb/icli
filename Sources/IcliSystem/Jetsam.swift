@@ -25,14 +25,3 @@ private func jetsamProperties() -> [String: Any] {
     }
     return properties
 }
-
-private func jsonSafe(_ value: Any) -> Any {
-    switch value {
-    case let dictionary as [String: Any]: dictionary.mapValues(jsonSafe)
-    case let array as [Any]: array.map(jsonSafe)
-    case let data as Data: data.base64EncodedString()
-    case let date as Date: ISO8601DateFormatter().string(from: date)
-    case is NSNumber, is String: value
-    default: String(describing: value)
-    }
-}

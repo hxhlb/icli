@@ -211,7 +211,8 @@ private func parseISO8601(_ text: String) -> Date? {
     return formatter.date(from: text)
 }
 
-/// `{value, type}` with JSON-safe values: data as Base64, dates as ISO-8601.
+/// `{value, type}` with JSON-safe values: data as Base64, dates as ISO-8601,
+/// a NaN or infinite real as its description.
 private func describePreference(_ value: CFPropertyList) -> [String: Any] {
     let type = CFGetTypeID(value)
     switch type {
@@ -219,7 +220,7 @@ private func describePreference(_ value: CFPropertyList) -> [String: Any] {
     case CFNumberGetTypeID():
         let number = value as! NSNumber
         return CFNumberIsFloatType((value as! CFNumber))
-            ? ["value": number.doubleValue, "type": "float"]
+            ? ["value": jsonSafe(number), "type": "float"]
             : ["value": number.int64Value, "type": "int"]
     case CFStringGetTypeID(): return ["value": value as! String, "type": "string"]
     case CFDateGetTypeID(): return ["value": formatDate(value as! Date), "type": "date"]
@@ -236,7 +237,7 @@ private func jsonValue(_ value: Any) -> Any {
     case let date as Date: formatDate(date)
     case let dictionary as [String: Any]: dictionary.mapValues(jsonValue)
     case let array as [Any]: array.map(jsonValue)
-    default: value
+    default: jsonSafe(value)
     }
 }
 

@@ -1,4 +1,5 @@
 #import "IcliSystemPrivate.h"
+#import "SystemJSON.h"
 #import <Foundation/Foundation.h>
 #import <xpc/xpc.h>
 #import <mach/mach.h>
@@ -50,16 +51,17 @@ extern int _xpc_pipe_interface_routine(
 extern const char *xpc_strerror(int error);
 
 static char *launchdJSON(NSDictionary *value) {
-    NSData *data = [NSJSONSerialization dataWithJSONObject:value options:0 error:nil];
-    return data ? strndup(data.bytes, data.length) : NULL;
+    return icli_system_json(value);
 }
 
+/// Job records carry whatever a plist or an XPC submission put in them, so
+/// strings are decoded leniently and a non-finite double becomes a string.
 static id objectFromXPC(xpc_object_t value) {
     xpc_type_t type = xpc_get_type(value);
-    if (type == XPC_TYPE_STRING) return @(xpc_string_get_string_ptr(value));
+    if (type == XPC_TYPE_STRING) return icli_system_string(xpc_string_get_string_ptr(value), xpc_string_get_length(value));
     if (type == XPC_TYPE_INT64) return @(xpc_int64_get_value(value));
     if (type == XPC_TYPE_UINT64) return @(xpc_uint64_get_value(value));
-    if (type == XPC_TYPE_DOUBLE) return @(xpc_double_get_value(value));
+    if (type == XPC_TYPE_DOUBLE) return icli_system_double(xpc_double_get_value(value));
     if (type == XPC_TYPE_BOOL) return @(xpc_bool_get_value(value));
     if (type == XPC_TYPE_ARRAY) {
         NSMutableArray *array = [NSMutableArray array];
@@ -72,7 +74,7 @@ static id objectFromXPC(xpc_object_t value) {
     if (type == XPC_TYPE_DICTIONARY) {
         NSMutableDictionary *dict = [NSMutableDictionary dictionary];
         xpc_dictionary_apply(value, ^bool(const char *key, xpc_object_t item) {
-            dict[@(key)] = objectFromXPC(item);
+            dict[icli_system_string(key, SIZE_MAX)] = objectFromXPC(item);
             return true;
         });
         return dict;
@@ -116,7 +118,7 @@ static NSDictionary *errorsFromReply(xpc_object_t reply) {
         xpc_dictionary_apply(table, ^bool(const char *key, xpc_object_t value) {
             if (xpc_get_type(value) == XPC_TYPE_INT64) {
                 int code = (int)xpc_int64_get_value(value);
-                errors[@(key)] = @{@"code": @(code), @"message": @(xpc_strerror(code))};
+                errors[icli_system_string(key, SIZE_MAX)] = @{@"code": @(code), @"message": icli_system_string(xpc_strerror(code), SIZE_MAX)};
             }
             return true;
         });
@@ -295,7 +297,7 @@ char *icli_launchd_getenv_json(const char *key) {
         @"message": @(xpc_strerror(status)),
         @"exists": @(value != NULL)
     } mutableCopy];
-    if (value) result[@"value"] = @(value);
+    if (value) result[@"value"] = icli_system_string(value, SIZE_MAX);
     return launchdJSON(result);
 }
 

@@ -1,4 +1,5 @@
 #import "IcliPrivate.h"
+#import "Settle.h"
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
@@ -36,10 +37,14 @@ static id brightnessClient(void) {
     return [[clientClass alloc] init];
 }
 
+// A copy-family method returns +1; through a plain objc_msgSend cast ARC
+// would take it as +0 and leak it on every call.
+typedef id (*CopyProperty)(id, SEL, id) NS_RETURNS_RETAINED;
+
 int icli_auto_brightness(void) {
     id client = brightnessClient();
     id value = client
-        ? ((id (*)(id, SEL, id))objc_msgSend)(client, @selector(copyPropertyForKey:), @"DisplayBrightnessAuto")
+        ? ((CopyProperty)objc_msgSend)(client, @selector(copyPropertyForKey:), @"DisplayBrightnessAuto")
         : nil;
     return [value respondsToSelector:@selector(boolValue)] ? [value boolValue] : -1;
 }
@@ -64,14 +69,14 @@ static bool setUserBrightness(double value) {
 
 // backboardd honours BKSDisplayBrightnessSet only from clients holding
 // com.apple.backboard.displaybrightness; the request is sent asynchronously,
-// so spin the run loop before the caller reads the value back.
+// so wait before the caller reads the value back.
 bool icli_brightness_set(double value) {
     icli_private_init();
     double v = value;
     if (v < 0) v = 0;
     if (v > 1) v = 1;
     if (setUserBrightness(v)) {
-        CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.3, false);
+        icli_settle(0.3);
         return true;
     }
     void *handle = dlopen("/System/Library/PrivateFrameworks/BackBoardServices.framework/BackBoardServices", RTLD_NOW);
@@ -80,7 +85,7 @@ bool icli_brightness_set(double value) {
         return false;
     }
     set((float)v, 1);
-    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.3, false);
+    icli_settle(0.3);
     return true;
 }
 

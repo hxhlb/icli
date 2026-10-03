@@ -27,10 +27,11 @@ private func scanApplicationDirs() -> [[String: Any]] {
         for name in names where name.hasSuffix(".app") {
             let path = (dir as NSString).appendingPathComponent(name)
             let plist = path + "/Info.plist"
+            // Only string values are taken; an Info.plist may hold anything.
             let info = NSDictionary(contentsOfFile: plist)
             extra.append([
-                "name": info?["CFBundleDisplayName"] ?? info?["CFBundleName"] ?? name,
-                "bundle_id": info?["CFBundleIdentifier"] ?? "",
+                "name": info?["CFBundleDisplayName"] as? String ?? info?["CFBundleName"] as? String ?? name,
+                "bundle_id": info?["CFBundleIdentifier"] as? String ?? "",
                 "bundle_path": path,
             ])
         }

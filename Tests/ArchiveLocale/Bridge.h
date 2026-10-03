@@ -11,3 +11,7 @@ char *icli_deb_read_json(const char *path, const char *destination);
 char *icli_deb_unpack_json(const char *path, const char *prefix, const char **skip, int skip_count);
 char *icli_tar_entry_text(const char *path, const char *entry_name);
 char *icli_archive_with_utf8_names(char *(^body)(void));
+
+// The JSON guards a long-running host relies on instead of an ObjC exception.
+#import "../../Sources/IcliPrivate/IcliJSON.h"
+#import "../../Sources/IcliSystemPrivate/SystemJSON.h"

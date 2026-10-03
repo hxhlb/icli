@@ -97,7 +97,8 @@ private func fixPermissions(_ app: String) throws {
 private func isMachO(_ path: String) -> Bool {
     guard let handle = FileHandle(forReadingAtPath: path) else { return false }
     defer { try? handle.close() }
-    let magic = handle.readData(ofLength: 4)
+    // The throwing read: the legacy readData(ofLength:) raises on an I/O error.
+    guard let magic = try? handle.read(upToCount: 4) else { return false }
     return magic.count == 4
         && [0xFEED_FACF, 0xCFFA_EDFE, 0xCAFE_BABE, 0xBEBA_FECA]
         .contains(magic.withUnsafeBytes { $0.load(as: UInt32.self) })

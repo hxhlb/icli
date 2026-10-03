@@ -1,4 +1,5 @@
 #import "IcliPrivate.h"
+#import "Settle.h"
 #import "IcliJSON.h"
 #import <Foundation/Foundation.h>
 #import <objc/message.h>
@@ -34,9 +35,15 @@ char *icli_audio_button_json(const char *button) {
     NSDictionary *before = audioState(controller);
     if (before[@"error"]) return icli_json(before);
     if (!icli_hid_button(button)) return icli_json(@{@"error": @"audio HID event unavailable"});
-    [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.2]];
-    NSDictionary *after = audioState(controller);
     NSString *key = mute ? @"active_muted" : @"active_volume";
+    // Poll rather than wait once: reading `after` before the press lands would
+    // apply the change a second time below, toggling mute straight back.
+    NSDictionary *after = nil;
+    for (int poll = 0; poll < 10; poll++) {
+        icli_settle(0.05);
+        after = audioState(controller);
+        if (after[@"error"] || ![before[key] isEqual:after[key]]) break;
+    }
     NSString *method = @"hid";
     if ([before[key] isEqual:after[key]]) {
         if (mute) {
@@ -49,7 +56,7 @@ char *icli_audio_button_json(const char *button) {
                 return icli_json(@{@"error": @"audio volume control unavailable"});
         }
         method = @"audio_control";
-        [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
+        icli_settle(0.1);
         after = audioState(controller);
     }
     if (after[@"error"]) return icli_json(after);

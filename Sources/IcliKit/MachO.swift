@@ -78,5 +78,6 @@ func machOInfo(at path: String) throws -> [String: Any] {
         }
         offset += size
     }
-    return ["encrypted": encrypted, "entitlements": entitlements]
+    // Entitlements are a plist and may hold data, dates or non-finite reals.
+    return ["encrypted": encrypted, "entitlements": jsonSafe(entitlements)]
 }

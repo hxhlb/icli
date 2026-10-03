@@ -9,7 +9,34 @@ public struct JailbreakRoot: Equatable {
     public let layout: Layout?
     public let jbroot: String
     public let source: String
-    public static let current = detect()
+
+    /// The bootstrap this process sees. A long-running host may start before
+    /// the bootstrap is installed or outlive its removal, so an answer that
+    /// found none, or whose jbroot is gone, is looked up again, at most once
+    /// a second.
+    public static var current: JailbreakRoot {
+        cache.lock.lock()
+        defer { cache.lock.unlock() }
+        let now = ProcessInfo.processInfo.systemUptime
+        if let root = cache.root, root.layout != nil, access(root.jbroot, F_OK) == 0 {
+            return root
+        }
+        if let root = cache.root, now - cache.checked < 1 {
+            return root
+        }
+        let root = detect()
+        cache.root = root
+        cache.checked = now
+        return root
+    }
+
+    private final class Cache: @unchecked Sendable {
+        let lock = NSLock()
+        var root: JailbreakRoot?
+        var checked: TimeInterval = 0
+    }
+
+    private static let cache = Cache()
 
     public func jbrootPath(_ path: String) -> String {
         takeCString(icli_jbroot_path(path)) ?? path

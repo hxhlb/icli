@@ -3,6 +3,7 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <dlfcn.h>
+#import <os/lock.h>
 #import <stdlib.h>
 #import <unistd.h>
 
@@ -21,16 +22,21 @@ static void (*setAutomationEnabled)(Boolean);
 
 // Both switches are system-wide and persist: every app launched while they are on
 // loads the accessibility bundles and reports automation. A query needs them, so
-// they go on before the first one and back to their old values when icli exits.
-// Per-process rather than per-query, because `ui wait` polls in a loop and
-// flipping a system-wide switch on every poll churns every app on the device.
+// they go on before a query and back to their old values when icli exits, or
+// when a long-running host calls icli_ax_restore_switches. They stay on between
+// queries, because `ui wait` polls in a loop and flipping a system-wide switch
+// on every poll churns every app on the device. Each query reads them again: a
+// host outlives the user or another tool turning them off in the meantime.
 static BOOL turnedOnApplication;
 static BOOL turnedOnAutomation;
+static os_unfair_lock switchLock = OS_UNFAIR_LOCK_INIT;
 
-static void restoreSwitches(void) {
-    if (turnedOnAutomation) setAutomationEnabled(false);
-    if (turnedOnApplication) setApplicationEnabled(false);
+void icli_ax_restore_switches(void) {
+    os_unfair_lock_lock(&switchLock);
+    if (turnedOnAutomation && setAutomationEnabled) setAutomationEnabled(false);
+    if (turnedOnApplication && setApplicationEnabled) setApplicationEnabled(false);
     turnedOnAutomation = turnedOnApplication = NO;
+    os_unfair_lock_unlock(&switchLock);
 }
 
 // Answers YES when this call turned a switch on, so the caller knows the target
@@ -39,15 +45,17 @@ static void restoreSwitches(void) {
 // device's owner had turned on, for VoiceOver say, would be worse than not
 // reading the tree.
 static BOOL enableSwitches(void) {
-    if (turnedOnApplication || turnedOnAutomation) return NO;
+    os_unfair_lock_lock(&switchLock);
     BOOL application = applicationEnabled && setApplicationEnabled && !applicationEnabled();
     BOOL automation = automationEnabled && setAutomationEnabled && !automationEnabled();
-    if (!application && !automation) return NO;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{ atexit(restoreSwitches); });
-    if (application) { setApplicationEnabled(true); turnedOnApplication = YES; }
-    if (automation) { setAutomationEnabled(true); turnedOnAutomation = YES; }
-    return YES;
+    if (application || automation) {
+        static dispatch_once_t once;
+        dispatch_once(&once, ^{ atexit(icli_ax_restore_switches); });
+        if (application) { setApplicationEnabled(true); turnedOnApplication = YES; }
+        if (automation) { setAutomationEnabled(true); turnedOnAutomation = YES; }
+    }
+    os_unfair_lock_unlock(&switchLock);
+    return application || automation;
 }
 
 static BOOL prepareAX(void) {

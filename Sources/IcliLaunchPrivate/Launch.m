@@ -13,7 +13,8 @@
 
 static mach_port_t (*pSBSSpringBoardServerPort)(void);
 static void (*pSBGetScreenLockStatus)(mach_port_t, BOOL *, BOOL *);
-static NSString *(*pSBSCopyFrontmostApplicationDisplayIdentifier)(void);
+// The Copy rule: the identifier comes back retained.
+static NSString *(*pSBSCopyFrontmostApplicationDisplayIdentifier)(void) NS_RETURNS_RETAINED;
 static int (*pSBSLaunchApplicationWithIdentifierAndLaunchOptions)(NSString *, NSDictionary *, NSDictionary *, BOOL);
 
 static void icli_launch_init(void) {
@@ -34,6 +35,7 @@ static void icli_launch_init(void) {
 }
 
 static char *launchJSON(NSDictionary *value) {
+    if (![NSJSONSerialization isValidJSONObject:value]) return strdup("{}");
     NSData *data = [NSJSONSerialization dataWithJSONObject:value options:0 error:nil];
     return data ? strndup(data.bytes, data.length) : strdup("{}");
 }
@@ -133,6 +135,9 @@ static NSString *runningBoardFocalApplication(void) {
         }
         char *app = strstr(path, ".app/");
         if (!app || strchr(app + 5, '/')) continue;
+        // Callers poll this, launchApp ten times a second, and a host thread
+        // may have no pool of its own to drain the RunningBoard objects.
+        @autoreleasepool {
         @try {
             id identifier = ((id (*)(id, SEL, int))objc_msgSend)(identifierClass, identifierSelector, pid);
             id handle = ((id (*)(id, SEL, id, NSError **))objc_msgSend)(handleClass, handleSelector, identifier, NULL);
@@ -157,6 +162,7 @@ static NSString *runningBoardFocalApplication(void) {
             }
         } @catch (NSException *ex) {
             (void)ex;
+        }
         }
     }
     free(processes);

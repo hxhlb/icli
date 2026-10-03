@@ -74,7 +74,14 @@ func installIPA(_ path: String) throws -> [String: Any] {
     }
     let manager = FileManager.default
     let staged = try stageIPA(path)
-    defer { try? manager.removeItem(atPath: staged.stage) }
+    // The stage also holds the previous app during an upgrade, so it stays
+    // when that app could not be moved back.
+    var keepStage = false
+    defer {
+        if !keepStage {
+            try? manager.removeItem(atPath: staged.stage)
+        }
+    }
     let (stage, source, bundleID, executable) = (staged.stage, staged.app, staged.bundleID, staged.executable)
     let target = try managedAppPath(bundleID)
     let receipt = managedReceipt(bundleID)
@@ -111,8 +118,15 @@ func installIPA(_ path: String) throws -> [String: Any] {
         _ = icli_unregister_app(target)
         try? manager.removeItem(atPath: target)
         if upgrading {
-            try manager.moveItem(atPath: backup, toPath: target)
-            _ = icli_register_app(target)
+            do {
+                try manager.moveItem(atPath: backup, toPath: target)
+                _ = icli_register_app(target)
+            } catch let restoreError {
+                keepStage = true
+                throw IcliError.failed(
+                    "\(error); the previous app could not be restored (\(restoreError)) and is kept at \(backup)",
+                )
+            }
         }
         throw error
     }

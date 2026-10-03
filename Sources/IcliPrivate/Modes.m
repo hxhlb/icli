@@ -31,9 +31,21 @@ char *icli_amfi_developer_mode_json(bool arm) {
     xpc_connection_set_event_handler(connection, ^(xpc_object_t event) {});
     xpc_connection_resume(connection);
     xpc_object_t message = toXPC((__bridge CFDictionaryRef)@{@"action": @(arm ? AMFIActionArm : AMFIActionStatus)});
-    xpc_object_t reply = message ? xpc_connection_send_message_with_reply_sync(connection, message) : nil;
+    // Not the _sync send: it has no timeout, and an amfid that never answers
+    // would hold the calling thread of a long-running host for good.
+    __block xpc_object_t reply = nil;
+    BOOL answered = NO;
+    if (message) {
+        dispatch_semaphore_t done = dispatch_semaphore_create(0);
+        dispatch_queue_t queue = dispatch_queue_create("icli.amfi.reply", DISPATCH_QUEUE_SERIAL);
+        xpc_connection_send_message_with_reply(connection, message, queue, ^(xpc_object_t response) {
+            reply = response;
+            dispatch_semaphore_signal(done);
+        });
+        answered = dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC)) == 0;
+    }
     xpc_connection_cancel(connection);
-    if (!reply || xpc_get_type(reply) != XPC_TYPE_DICTIONARY) {
+    if (!answered || !reply || xpc_get_type(reply) != XPC_TYPE_DICTIONARY) {
         return icli_json(@{@"error": @"amfid did not answer the Developer Mode request."});
     }
     xpc_object_t wrapped = xpc_dictionary_get_value(reply, "cfreply");

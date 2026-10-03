@@ -243,18 +243,3 @@ private func isLikelyText(_ data: Data) -> Bool {
     }
     return String(data: data, encoding: .utf8) != nil
 }
-
-private func jsonSafe(_ value: Any) -> Any {
-    switch value {
-    case let d as Data:
-        d.base64EncodedString()
-    case let d as Date:
-        ISO8601DateFormatter().string(from: d)
-    case let dict as [String: Any]:
-        dict.mapValues { jsonSafe($0) }
-    case let arr as [Any]:
-        arr.map { jsonSafe($0) }
-    default:
-        value
-    }
-}

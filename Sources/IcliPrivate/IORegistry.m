@@ -3,6 +3,15 @@
 #import <Foundation/Foundation.h>
 #import <IOKit/IOKitLib.h>
 
+/// A registry name can be cut mid-character at io_name_t's 128 bytes, and @()
+/// gives nil for bytes that are not UTF-8, which a literal would throw on.
+static NSString *registryString(const char *bytes) {
+    size_t length = strnlen(bytes, sizeof(io_name_t));
+    return [[NSString alloc] initWithBytes:bytes length:length encoding:NSUTF8StringEncoding]
+        ?: [[NSString alloc] initWithBytes:bytes length:length encoding:NSISOLatin1StringEncoding]
+        ?: @"";
+}
+
 static void icliWalkRegistry(io_registry_entry_t entry, const char *planeName, int depth, NSMutableArray *entries) {
     if (depth > 5 || entries.count >= 300) {
         return;
@@ -12,8 +21,8 @@ static void icliWalkRegistry(io_registry_entry_t entry, const char *planeName, i
     IORegistryEntryGetName(entry, name);
     IOObjectGetClass(entry, cls);
     [entries addObject:@{
-        @"name": @(name),
-        @"class": @(cls),
+        @"name": registryString(name),
+        @"class": registryString(cls),
         @"depth": @(depth),
     }];
     io_iterator_t children = IO_OBJECT_NULL;

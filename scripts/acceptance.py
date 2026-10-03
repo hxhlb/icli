@@ -81,13 +81,21 @@ class Device:
     def run(self, command, timeout=35, sudo=False):
         command = shlex.join(command) if isinstance(command, list) else command
         password = self.env.get('ICLI_SSH_PASSWORD', '')
+        # A root login is already privileged, for a device without sudo.
+        sudo = sudo and self.user != 'root'
         if sudo:
             command = 'sudo -S -p "" ' + command
         start = time.monotonic()
-        result = subprocess.run(self.prefix + ['ssh', '-p', self.port] + self.options +
-                                [self.user + '@' + self.host, command],
-                                env=self.env, input=(password + '\n') if sudo else None,
-                                capture_output=True, text=True, timeout=timeout)
+        # Exit 255 is ssh's own failure (a dropped or refused login), not the
+        # command's; some guests refuse a password login now and then.
+        for attempt in range(4):
+            result = subprocess.run(self.prefix + ['ssh', '-p', self.port] + self.options +
+                                    [self.user + '@' + self.host, command],
+                                    env=self.env, input=(password + '\n') if sudo else None,
+                                    capture_output=True, text=True, timeout=timeout)
+            if result.returncode != 255 or 'Permission denied' not in result.stderr and 'Connection' not in result.stderr:
+                break
+            time.sleep(1 + attempt)
         trace = {'command': command, 'exit': result.returncode,
                            'seconds': round(time.monotonic()-start, 3),
                            'stdout': result.stdout[:12000], 'stderr': result.stderr[:2000]}
@@ -105,8 +113,13 @@ class Device:
             raise AssertionError(f'not JSON: {result.stdout[:1000]}') from error
 
     def upload(self, local, remote):
-        subprocess.run(self.prefix + ['scp', '-q', '-r', '-P', self.port] + self.options +
-                       [str(local), self.user + '@' + self.host + ':' + self.sh(remote)], env=self.env, check=True)
+        for attempt in range(4):
+            copied = subprocess.run(self.prefix + ['scp', '-q', '-r', '-P', self.port] + self.options +
+                                    [str(local), self.user + '@' + self.host + ':' + self.sh(remote)], env=self.env)
+            if copied.returncode == 0:
+                return
+            time.sleep(1 + attempt)
+        copied.check_returncode()
 
     def state(self):
         result = self.run(['cat', self.sh(STATE)])
@@ -615,8 +628,11 @@ def home_power(d):
     d.fixture()
 
     d.cli('button', 'home')
-    time.sleep(0.4)
-    assert d.cli('app', 'frontmost')['bundle_id'] == 'com.apple.springboard'
+    # The app-to-home animation takes longer than 0.4 s on some devices.
+    deadline = time.monotonic() + 3
+    while (frontmost := d.cli('app', 'frontmost')['bundle_id']) != 'com.apple.springboard':
+        assert time.monotonic() < deadline, 'button home left ' + frontmost + ' in front'
+        time.sleep(0.3)
     passcode = d.passcode_enabled()
     if passcode and not d.unlock_wait():
         d.observations.append('The device has a passcode and ICLI_UNLOCK_WAIT is unset, so button power and button wake were '
@@ -899,7 +915,8 @@ def location_simulation(d):
         return abs(reading['latitude'] - latitude) < 1e-6 and abs(reading['longitude'] - longitude) < 1e-6
 
     for arguments in [['91', '10'], ['-90.5', '10'], ['10', '-180.5'], ['nan', '10'], ['10', 'inf'], ['10'], ['10', '20', '30'],
-                      ['10', '10', '--horizontal-accuracy=-1'], ['10', '10', '--vertical-accuracy=-1'],
+                      # A vertical accuracy of -1 marks the altitude unknown and is accepted (0.7.7).
+                      ['10', '10', '--horizontal-accuracy=-1'],
                       ['10', '10', '--speed=-1'], ['10', '10', '--course', '360'], ['10', '10', '--altitude', 'nan']]:
         d.cli('location', 'set', *arguments, expected=1)
     d.cli('location', 'get', '--timeout', '0', expected=1)
@@ -1281,7 +1298,8 @@ def account_password(d):
     password = d.env.get('ICLI_SSH_PASSWORD')
     assert password, 'account_password needs ICLI_SSH_PASSWORD so the runner can log in with the new value and restore the original'
     temporary = 'icli-acceptance-' + uuid.uuid4().hex[:12]
-    snapshot = d.run(['sh', '-c', 'grep ^mobile /var/jb/etc/master.passwd | cut -d: -f2'], sudo=True)
+    passwd = d.sh(d.jb('/etc/master.passwd'))
+    snapshot = d.run(['sh', '-c', f'grep ^mobile {passwd} | cut -d: -f2'], sudo=True)
     before = snapshot.stdout.strip()
     snapshot.icli_trace['stdout'] = '<redacted account hash>'
     assert before.startswith('$6$'), 'expected a sha512-crypt hash for mobile'
@@ -1298,7 +1316,7 @@ def account_password(d):
     changed = change(password, temporary)
     try:
         assert changed['user'] == 'mobile' and changed['spwd_db_records'] == 3 and changed['scheme'] == 'sha512crypt', changed
-        login = subprocess.run(d.prefix + ['ssh', '-p', d.port, '-o', 'NumberOfPasswordPrompts=1'] + d.options + [d.user + '@' + d.host, 'sudo -S -p "" sh -c "id -u; grep ^mobile /var/jb/etc/master.passwd | cut -d: -f2"'],
+        login = subprocess.run(d.prefix + ['ssh', '-p', d.port, '-o', 'NumberOfPasswordPrompts=1'] + d.options + [d.user + '@' + d.host, f'sudo -S -p "" sh -c "id -u; grep ^mobile {passwd} | cut -d: -f2"'],
                                env=dict(d.env, SSHPASS=temporary), input=temporary + '\n', capture_output=True, text=True, timeout=60)
         assert login.returncode == 0 and login.stdout.splitlines()[0] == '0', 'new password rejected by sshd or sudo: ' + login.stderr
         stored = login.stdout.splitlines()[1]
@@ -1445,7 +1463,7 @@ def device_reboot(d):
 
 @case('repository_configuration', 'packages', ['pkg repos', 'pkg add-repo'])
 def repositories(d):
-    path = '/var/jb/etc/apt/sources.list.d/icli.list'
+    path = d.sh(d.jb('/etc/apt/sources.list.d/icli.list'))
     backup = '/tmp/icli-repo-backup-' + uuid.uuid4().hex
     saved = d.run(['test', '-e', path]).returncode == 0
     if saved:
@@ -1461,6 +1479,25 @@ def repositories(d):
             assert d.run(['mv', backup, path], sudo=True).returncode == 0
         else:
             assert d.run(['rm', '-f', path], sudo=True).returncode == 0
+
+
+@case('system_dumps', 'system', ['device jetsam', 'svc dump', 'sec keychain database'])
+def system_dumps(d):
+    # jetsam's priority list needs root; without it the field says why and the
+    # rest of the snapshot stands.
+    unprivileged = d.cli('device', 'jetsam')
+    assert unprivileged['memory'].get('hw_memsize', 0) > 0, unprivileged['memory']
+    assert 'priorities' in unprivileged or unprivileged.get('priorities_error'), sorted(unprivileged)
+    privileged = d.cli('device', 'jetsam', sudo=True)
+    rows = privileged.get('priorities', [])
+    assert len(rows) > 10 and all(isinstance(row['name'], str) for row in rows), privileged.get('priorities_error')
+    assert any(row['name'] == 'SpringBoard' for row in rows), 'SpringBoard is not in a jetsam band'
+    dump = d.cli('svc', 'dump', timeout=180)
+    assert dump['count'] > 50 and dump['described'] + len(dump['errors']) >= dump['count'], {k: dump[k] for k in ['count', 'described']}
+    d.cli('sec', 'keychain', 'database', expected=1)
+    keychain = d.cli('sec', 'keychain', 'database', sudo=True)
+    assert keychain['source'] == 'database' and keychain['count'] == len(keychain['items']), sorted(keychain)
+    assert all(item['protectedMetadata'] is True for item in keychain['items'])
 
 
 @case('keychain_fixture', 'security', ['sec keychain list', 'sec keychain get', 'sec keychain add', 'sec keychain update', 'sec keychain delete'])

@@ -1,4 +1,5 @@
 #import "IcliPrivate.h"
+#import "Settle.h"
 #import "IcliJSON.h"
 #import <Foundation/Foundation.h>
 #import <objc/message.h>
@@ -58,13 +59,8 @@ char *icli_syslog_json(double seconds, const char *process, const char *level, i
     };
     ((void (*)(id, SEL, id))objc_msgSend)(stream, setHandler, handler);
     ((void (*)(id, SEL))objc_msgSend)(stream, activate);
-    NSTimeInterval deadline = NSProcessInfo.processInfo.systemUptime + seconds;
-    while (NSProcessInfo.processInfo.systemUptime < deadline) {
-        [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:MIN(
-            0.1,
-            deadline - NSProcessInfo.processInfo.systemUptime
-        )]];
-    }
+    // The stream calls the handler on its own queue; this only waits.
+    icli_settle(seconds);
     ((void (*)(id, SEL))objc_msgSend)(stream, invalidate);
     [lock lock];
     NSArray *snapshot = [entries copy];

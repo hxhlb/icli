@@ -114,15 +114,28 @@ private struct Stanza {
     }
 }
 
+/// dpkg's lock is a POSIX record lock, which belongs to the whole process:
+/// a second thread of the same host would be granted it too, and the first
+/// close would drop it for both. Transactions in one process queue here.
+private let dpkgTransaction = NSLock()
+
 private struct DpkgDatabase {
     let directory: String
-    var stanzas: [Stanza]
+    var stanzas: [Stanza] = []
     private var lock: Int32 = -1
 
-    init() throws {
+    /// With `locking`, dpkg's lock is taken before status is read, so the
+    /// snapshot a transaction edits is the one it later saves over.
+    init(locking: Bool = false) throws {
         directory = JailbreakRoot.current.jbrootPath("/var/lib/dpkg")
+        if locking {
+            try acquireLock()
+        }
         let path = directory + "/status"
-        guard let text = try? String(contentsOfFile: path, encoding: .utf8) else { throw IcliError.missing(path) }
+        guard let text = try? String(contentsOfFile: path, encoding: .utf8) else {
+            releaseLock()
+            throw IcliError.missing(path)
+        }
         stanzas = text.components(separatedBy: "\n\n")
             .map { $0.trimmingCharacters(in: .newlines) }
             .filter { !$0.isEmpty }
@@ -149,20 +162,28 @@ private struct DpkgDatabase {
     }
 
     /// dpkg's own lock: fails fast instead of racing a concurrent dpkg or apt.
-    mutating func acquireLock() throws {
+    private mutating func acquireLock() throws {
         guard geteuid() == 0 else { throw IcliError.failed("package installation requires root") }
-        lock = open(directory + "/lock", O_RDWR | O_CREAT, 0o640)
-        guard lock >= 0 else { throw IcliError.failed("cannot open dpkg lock: \(String(cString: strerror(errno)))") }
+        dpkgTransaction.lock()
+        let descriptor = open(directory + "/lock", O_RDWR | O_CREAT | O_CLOEXEC, 0o640)
+        guard descriptor >= 0 else {
+            let message = String(cString: strerror(errno))
+            dpkgTransaction.unlock()
+            throw IcliError.failed("cannot open dpkg lock: \(message)")
+        }
         var request = flock(l_start: 0, l_len: 0, l_pid: 0, l_type: Int16(F_WRLCK), l_whence: Int16(SEEK_SET))
-        guard fcntl(lock, F_SETLK, &request) == 0 else {
-            close(lock)
+        guard fcntl(descriptor, F_SETLK, &request) == 0 else {
+            close(descriptor)
+            dpkgTransaction.unlock()
             throw IcliError.failed("dpkg database is locked by another process")
         }
+        lock = descriptor
     }
 
     mutating func releaseLock() {
         if lock >= 0 {
             close(lock)
+            dpkgTransaction.unlock()
         }
         lock = -1
     }
@@ -172,7 +193,12 @@ private struct DpkgDatabase {
         let path = directory + "/status"
         let text = stanzas.map(\.raw).joined(separator: "\n\n") + "\n\n"
         let temporary = path + ".icli-\(UUID().uuidString)"
-        try text.write(toFile: temporary, atomically: false, encoding: .utf8)
+        do {
+            try text.write(toFile: temporary, atomically: false, encoding: .utf8)
+        } catch {
+            unlink(temporary)
+            throw error
+        }
         try? FileManager.default.removeItem(atPath: directory + "/status-old")
         try? FileManager.default.copyItem(atPath: path, toPath: directory + "/status-old")
         guard rename(temporary, path) == 0 else {
@@ -357,8 +383,7 @@ public func installDebFile(_ path: String, ignoreDependencies: Bool = false) thr
     guard acceptedArchitectures().contains(architecture) else {
         throw IcliError.failed("package architecture \(architecture) does not match the \(layout.rawValue) bootstrap")
     }
-    var database = try DpkgDatabase()
-    try database.acquireLock()
+    var database = try DpkgDatabase(locking: true)
     defer { database.releaseLock() }
     let unmet = unmetDependencies(control, database: database)
     if !unmet.isEmpty && !ignoreDependencies {
@@ -477,12 +502,11 @@ public func installDebFile(_ path: String, ignoreDependencies: Bool = false) thr
 /// only when empty), keep conffiles as dpkg does, and update the database.
 public func removeDeb(_ name: String, purge: Bool = false) throws -> [String: Any] {
     try validPackageName(name)
-    var database = try DpkgDatabase()
-    guard let stanza = database.stanza(name), stanza.installed || purge else {
-        return ["package": name, "removed": false, "message": "package is not installed"]
-    }
-    try database.acquireLock()
+    let notInstalled: [String: Any] = ["package": name, "removed": false, "message": "package is not installed"]
+    guard let current = try DpkgDatabase().stanza(name), current.installed || purge else { return notInstalled }
+    var database = try DpkgDatabase(locking: true)
     defer { database.releaseLock() }
+    guard let stanza = database.stanza(name), stanza.installed || purge else { return notInstalled }
     let files = fileList(database, name)
     let conffiles = purge
         ? []

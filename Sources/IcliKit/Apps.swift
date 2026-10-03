@@ -79,8 +79,8 @@ public func appInfo(_ bundleID: String) throws -> [String: Any] {
         let executable = Bundle(path: bundle)?.executablePath ?? ""
         info["executable"] = executable
         let metadata = NSDictionary(contentsOfFile: bundle + "/Info.plist")
-        info["minimum_os"] = metadata?["MinimumOSVersion"] ?? ""
-        info["sdk"] = metadata?["DTSDKName"] ?? ""
+        info["minimum_os"] = metadata?["MinimumOSVersion"] as? String ?? ""
+        info["sdk"] = metadata?["DTSDKName"] as? String ?? ""
         do {
             let signing = try machOInfo(at: executable)
             info["entitlements"] = signing["entitlements"]

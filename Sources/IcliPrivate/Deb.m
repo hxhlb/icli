@@ -10,9 +10,56 @@
 #include <unistd.h>
 
 // A .deb is an ar(1) archive holding debian-binary, control.tar.* and
-// data.tar.* (gzip, xz, zstd, bzip2, lzma or none). Members are read into
-// memory (capped) and unpacked with a second reader.
+// data.tar.* (gzip, xz, zstd, bzip2, lzma or none). The small members are
+// read into memory (capped); data.tar is streamed through a second reader
+// fed from the first, so a large package never sits in memory whole.
 static const int64_t kDebMemberLimit = 512LL * 1024 * 1024;
+
+/// An entry name as a string, or nil when its bytes are not UTF-8. Callers
+/// treat nil as a failure: `@(raw)` would be nil too, and a nil name thrown
+/// into a literal or a string method raises instead of failing.
+static NSString *entryName(const char *raw) {
+    return raw ? [NSString stringWithUTF8String:raw] : @"";
+}
+
+/// The current member of an ar reader, as the source of a nested reader.
+typedef struct {
+    struct archive *outer;
+    char buffer[65536];
+} NestedMember;
+
+static la_ssize_t readNestedMember(struct archive *reader, void *context, const void **out) {
+    NestedMember *member = context;
+    *out = member->buffer;
+    la_ssize_t bytes = archive_read_data(member->outer, member->buffer, sizeof(member->buffer));
+    if (bytes < 0)
+        archive_set_error(reader, EIO, "%s", archive_error_string(member->outer) ?: "deb member could not be read");
+    return bytes;
+}
+
+/// A tar reader over the ar reader's current member. Free the reader before
+/// `member`, and do not advance `outer` while the reader is in use.
+static struct archive *nestedTarReader(struct archive *outer, NestedMember **member, NSString **failure) {
+    *member = calloc(1, sizeof(NestedMember));
+    struct archive *reader = *member ? archive_read_new() : NULL;
+    if (!reader) {
+        free(*member);
+        *member = NULL;
+        *failure = @"archive allocation failed";
+        return NULL;
+    }
+    (*member)->outer = outer;
+    archive_read_support_format_tar(reader);
+    archive_read_support_filter_all(reader);
+    if (archive_read_open(reader, *member, NULL, readNestedMember, NULL) != ARCHIVE_OK) {
+        *failure = @(archive_error_string(reader) ?: "invalid tar member");
+        archive_read_free(reader);
+        free(*member);
+        *member = NULL;
+        return NULL;
+    }
+    return reader;
+}
 
 static NSData *readMember(struct archive *reader, struct archive_entry *entry, NSString **failure) {
     int64_t size = archive_entry_size(entry);
@@ -60,7 +107,46 @@ static NSDictionary *parseControl(NSString *text, NSMutableArray *order) {
     return fields;
 }
 
-/// Lists a tar member; when `destination` is set the entries are extracted there too.
+/// Lists a tar member; when `destination` is set the entries are extracted
+/// there too. `texts` receives the top-level regular files of up to 1 MiB.
+static NSString *walkTarReader(
+    struct archive *reader,
+    NSString *destination,
+    NSMutableArray *entries,
+    NSMutableDictionary *texts,
+    bool absoluteLinks
+) {
+    NSString *failure = nil;
+    if (destination) {
+        NSUInteger count = 0;
+        uint64_t total = 0;
+        failure = icli_archive_extract(reader, destination, absoluteLinks, false, entries, &count, &total);
+    } else {
+        struct archive_entry *entry;
+        int status;
+        while ((status = archive_read_next_header(reader, &entry)) == ARCHIVE_OK) {
+            NSString *path = entryName(archive_entry_pathname(entry));
+            if (!path) { failure = @"deb contains an entry name that is not UTF-8"; break; }
+            mode_t type = archive_entry_filetype(entry);
+            [entries addObject:icli_archive_entry_info(entry, path)];
+            // Control files sit at the top level. A nested file must not
+            // stand in for one, and "list" is the installed-file list icli
+            // writes itself, so a member by that name is never taken.
+            NSString *name = path.lastPathComponent;
+            NSString *top = [path hasPrefix:@"./"] ? [path substringFromIndex:2] : path;
+            BOOL topLevel = [top isEqualToString:name] && ![name isEqualToString:@"list"];
+            if (texts && topLevel && type == AE_IFREG && archive_entry_size(entry) <= 1024 * 1024) {
+                NSData *body = readMember(reader, entry, &failure);
+                if (failure) break;
+                texts[name] = [[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding]
+                    ?: [body base64EncodedStringWithOptions:0];
+            }
+        }
+        if (!failure && status != ARCHIVE_EOF) failure = @(archive_error_string(reader) ?: "invalid tar member");
+    }
+    return failure;
+}
+
 static NSString *walkTar(
     NSData *data,
     NSString *destination,
@@ -71,28 +157,7 @@ static NSString *walkTar(
     NSString *failure = nil;
     struct archive *reader = tarReader(data, &failure);
     if (!reader) return failure;
-    if (destination) {
-        NSUInteger count = 0;
-        uint64_t total = 0;
-        failure = icli_archive_extract(reader, destination, absoluteLinks, false, entries, &count, &total);
-    } else {
-        struct archive_entry *entry;
-        int status;
-        while ((status = archive_read_next_header(reader, &entry)) == ARCHIVE_OK) {
-            const char *raw = archive_entry_pathname(entry);
-            NSString *path = raw ? @(raw) : @"";
-            mode_t type = archive_entry_filetype(entry);
-            [entries addObject:icli_archive_entry_info(entry, path)];
-            NSString *name = path.lastPathComponent;
-            if (texts && type == AE_IFREG && archive_entry_size(entry) <= 1024 * 1024) {
-                NSData *body = readMember(reader, entry, &failure);
-                if (failure) break;
-                texts[name] = [[NSString alloc] initWithData:body encoding:NSUTF8StringEncoding]
-                    ?: [body base64EncodedStringWithOptions:0];
-            }
-        }
-        if (!failure && status != ARCHIVE_EOF) failure = @(archive_error_string(reader) ?: "invalid tar member");
-    }
+    failure = walkTarReader(reader, destination, entries, texts, absoluteLinks);
     archive_read_free(reader);
     return failure;
 }
@@ -112,9 +177,10 @@ static char *readDeb(const char *path, const char *destination) {
     struct archive_entry *entry;
     int status = ARCHIVE_OK;
     while (!failure && (status = archive_read_next_header(reader, &entry)) == ARCHIVE_OK) {
-        const char *raw = archive_entry_pathname(entry);
-        NSString *name = raw ? @(raw) : @"";
-        if ([name hasPrefix:@"debian-binary"]) {
+        NSString *name = entryName(archive_entry_pathname(entry));
+        if (!name) {
+            failure = @"deb contains a member name that is not UTF-8";
+        } else if ([name hasPrefix:@"debian-binary"]) {
             NSData *body = readMember(reader, entry, &failure);
             NSString *version = [[[NSString alloc] initWithData:body ?: NSData.data encoding:NSUTF8StringEncoding]
                 stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
@@ -133,8 +199,13 @@ static char *readDeb(const char *path, const char *destination) {
             }
         } else if ([name hasPrefix:@"data.tar"]) {
             result[@"data_member"] = name;
-            NSData *body = readMember(reader, entry, &failure);
-            if (!failure) failure = walkTar(body, root, dataEntries, nil, true);
+            NestedMember *member = NULL;
+            struct archive *tar = nestedTarReader(reader, &member, &failure);
+            if (tar) {
+                failure = walkTarReader(tar, root, dataEntries, nil, true);
+                archive_read_free(tar);
+                free(member);
+            }
         } else {
             failure = [@"unexpected deb member: " stringByAppendingString:name];
         }
@@ -166,7 +237,8 @@ char *icli_deb_read_json(const char *path, const char *destination) {
 /// Archive path as dpkg records it in info/*.list: "./usr/bin/x" and
 /// "usr/bin/x" both become "/usr/bin/x"; the root entry is "/.".
 static NSString *recordedPath(const char *raw) {
-    NSString *path = raw ? @(raw) : @"";
+    NSString *path = entryName(raw);
+    if (!path) return nil;
     if ([path hasPrefix:@"./"]) path = [path substringFromIndex:1];
     if (![path hasPrefix:@"/"]) path = [@"/" stringByAppendingString:path];
     path = path.stringByStandardizingPath;
@@ -198,18 +270,18 @@ static char *unpackDeb(const char *path, const char *prefix, const char **skip, 
     if (archive_read_open_filename(ar, path, 65536) != ARCHIVE_OK)
         failure = @(archive_error_string(ar) ?: "could not open deb");
     struct archive_entry *member;
-    NSData *body = nil;
-    while (!failure && !body && archive_read_next_header(ar, &member) == ARCHIVE_OK) {
+    struct archive *tar = NULL;
+    NestedMember *source = NULL;
+    while (!failure && !tar && archive_read_next_header(ar, &member) == ARCHIVE_OK) {
         const char *raw = archive_entry_pathname(member);
-        if (raw && strncmp(raw, "data.tar", 8) == 0) body = readMember(ar, member, &failure);
+        if (raw && strncmp(raw, "data.tar", 8) == 0) tar = nestedTarReader(ar, &source, &failure);
     }
-    archive_read_free(ar);
-    if (!failure && !body) failure = @"deb has no data member";
-    struct archive *tar = failure ? NULL : tarReader(body, &failure);
+    if (!failure && !tar) failure = @"deb has no data member";
     struct archive_entry *entry;
     int status = ARCHIVE_OK;
     while (!failure && tar && (status = archive_read_next_header(tar, &entry)) == ARCHIVE_OK) {
         NSString *relative = recordedPath(archive_entry_pathname(entry));
+        if (!relative) { failure = @"deb contains an entry name that is not UTF-8"; break; }
         if ([relative.pathComponents containsObject:@".."]) { failure = @"deb contains an unsafe path"; break; }
         [installed addObject:relative];
         if ([relative isEqualToString:@"/."]) continue;
@@ -238,7 +310,21 @@ static char *unpackDeb(const char *path, const char *prefix, const char **skip, 
         if (![NSFileManager.defaultManager createDirectoryAtPath:destination.stringByDeletingLastPathComponent withIntermediateDirectories:YES attributes:@{NSFilePosixPermissions: @0755} error:&error]) { failure = error.localizedDescription; break; }
         NSString *staging = [destination stringByAppendingString:@".dpkg-new"];
         unlink(staging.fileSystemRepresentation);
-        if (type == AE_IFLNK) {
+        const char *hardlink = archive_entry_hardlink(entry);
+        if (hardlink) {
+            // A tar hard link reads as an empty regular file; link it to the
+            // file an earlier entry installed, as dpkg does.
+            NSString *linked = recordedPath(hardlink);
+            if (!linked || [linked.pathComponents containsObject:@".."] || [linked isEqualToString:@"/."]) {
+                failure = [NSString stringWithFormat:@"%@: unsafe hard link", relative];
+                break;
+            }
+            NSString *original = [root stringByAppendingString:linked];
+            if (link(original.fileSystemRepresentation, staging.fileSystemRepresentation) != 0) {
+                failure = [NSString stringWithFormat:@"hard link %@: %s", destination, strerror(errno)];
+                break;
+            }
+        } else if (type == AE_IFLNK) {
             const char *target = archive_entry_symlink(entry);
             if (!target || !*target || symlink(target, staging.fileSystemRepresentation) != 0) {
                 failure = [NSString stringWithFormat:@"symlink %@: %s", destination, strerror(errno)];
@@ -270,6 +356,8 @@ static char *unpackDeb(const char *path, const char *prefix, const char **skip, 
     }
     if (!failure && tar && status != ARCHIVE_EOF) failure = @(archive_error_string(tar) ?: "invalid data member");
     if (tar) archive_read_free(tar);
+    free(source);
+    archive_read_free(ar);
     if (failure) return icli_json(@{@"error": failure, @"installed": installed});
     return icli_json(@{@"installed": installed, @"kept": kept});
 }
@@ -289,10 +377,10 @@ static char *tarEntryText(const char *path, const char *entry_name) {
     if (archive_read_open_filename(reader, path, 65536) == ARCHIVE_OK) {
         struct archive_entry *entry;
         while (archive_read_next_header(reader, &entry) == ARCHIVE_OK) {
-            const char *raw = archive_entry_pathname(entry);
-            NSString *name = raw ? [@(raw) stringByStandardizingPath] : @"";
+            NSString *name = entryName(archive_entry_pathname(entry)).stringByStandardizingPath;
+            if (!name) continue;
             if ([name hasPrefix:@"./"]) name = [name substringFromIndex:2];
-            if (![name isEqualToString:@(entry_name)] || archive_entry_size(entry) > 65536) continue;
+            if (![name isEqualToString:[NSString stringWithUTF8String:entry_name]] || archive_entry_size(entry) > 65536) continue;
             NSString *failure = nil;
             NSData *body = readMember(reader, entry, &failure);
             if (body) text = strndup(body.bytes, body.length);

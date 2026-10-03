@@ -40,12 +40,16 @@ public enum Envelope {
             fputs(humanText(dict), stdout)
             return
         }
-        let data = (try? JSONSerialization.data(
-            withJSONObject: payload,
-            options: [.prettyPrinted, .sortedKeys],
-        )) ?? Data("{\"error\":\"failed\",\"message\":\"unencodable\"}".utf8)
-        FileHandle.standardOutput.write(data)
-        FileHandle.standardOutput.write(Data("\n".utf8))
+        // JSONSerialization raises an Objective-C exception, which `try?`
+        // cannot catch, for a NaN or a non-JSON type, so check first.
+        let encodable = JSONSerialization.isValidJSONObject(payload) ? payload : jsonSafe(payload)
+        let data = JSONSerialization.isValidJSONObject(encodable)
+            ? (try? JSONSerialization.data(withJSONObject: encodable, options: [.prettyPrinted, .sortedKeys]))
+            : nil
+        // The throwing write: the legacy write(_:) raises on EPIPE or EBADF.
+        try? FileHandle.standardOutput.write(
+            contentsOf: (data ?? Data("{\"error\":\"failed\",\"message\":\"unencodable\"}".utf8)) + Data("\n".utf8),
+        )
     }
 
     public static func run(allowWhenLocked: Bool = false, _ body: () throws -> [String: Any]) {

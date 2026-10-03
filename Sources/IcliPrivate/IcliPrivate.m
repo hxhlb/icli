@@ -1,11 +1,15 @@
 #import "IcliPrivate.h"
+#import "Settle.h"
 #import "IcliJSON.h"
 
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <CoreGraphics/CoreGraphics.h>
 
-OBJC_EXTERN UIImage *_UICreateScreenUIImage(void);
+// The Create rule: UIKit returns the image from alloc/initWithCGImage without
+// autoreleasing it. ARC applies the rule only when told, and without this every
+// capture leaked a display-sized image and its surface.
+OBJC_EXTERN UIImage *_UICreateScreenUIImage(void) NS_RETURNS_RETAINED;
 #import <dlfcn.h>
 #import <notify.h>
 #import <objc/message.h>
@@ -220,8 +224,10 @@ static IcliScreenMetrics panelMetrics(void) {
         m.width = screen.bounds.size.width;
         m.height = screen.bounds.size.height;
         m.scale = screen.scale > 0 ? screen.scale : 1;
-        m.orientation = (int)[[UIDevice currentDevice] orientation];
     }
+    // orientation is in degrees. UIDevice's orientation is an enum, not
+    // degrees, and stays unknown in a host that never asked for device
+    // orientation notifications, so the fallback is the panel's own 0.
     id display = mainDisplay();
     if (!display) {
         return m;
@@ -508,7 +514,7 @@ static bool setCompositorOrientation(int degrees) {
         @selector(setOrientation:),
         uiInterfaceOrientationForDegrees(degrees)
     );
-    CFRunLoopRunInMode(kCFRunLoopDefaultMode, 0.3, false);
+    icli_settle(0.3);
     invalidateInterfaceGeometry();
     return true;
 }

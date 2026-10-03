@@ -269,6 +269,14 @@ public func elementAt(x: Double, y: Double) throws -> [String: Any] {
     return try decodeBridgeJSON(takeCString(icli_ax_element_at_json(frontmostPID(), x, y)), "AX response")
 }
 
+/// Turns the system-wide accessibility switches that element queries turned on
+/// back off. The icli command does this when it exits; a long-running host
+/// calls it when it stops reading the UI, since a host that is killed never
+/// reaches its exit handlers. A later query turns them on again.
+public func restoreAccessibilitySwitches() {
+    icli_ax_restore_switches()
+}
+
 public struct ElementSelector {
     public let text: String?
     public let identifier: String?

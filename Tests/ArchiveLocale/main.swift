@@ -213,10 +213,85 @@ func run(deb: URL) throws {
     try check(restored(), "the scope did not restore the caller's locale")
 }
 
+/// An ar archive with one member, built by hand so its name can be any bytes.
+func arArchive(memberName: Data, contents: Data) -> Data {
+    func field(_ text: String, _ width: Int) -> Data {
+        Data(text.utf8) + Data(repeating: 0x20, count: width - text.utf8.count)
+    }
+    var output = Data("!<arch>\n".utf8)
+    output.append(memberName + Data(repeating: 0x20, count: 16 - memberName.count))
+    output.append(field("0", 12) + field("0", 6) + field("0", 6) + field("100644", 8))
+    output.append(field(String(contents.count), 10) + Data("`\n".utf8))
+    output.append(contents)
+    if contents.count % 2 == 1 { output.append(0x0A) }
+    return output
+}
+
+func runDebSafety(links: URL, escape: URL, outside: URL) throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+
+    // Only top-level control members count, and never one named "list".
+    let listing = try json(icli_deb_read_json(links.path, nil))
+    let texts = listing["control_texts"] as? [String: Any] ?? [:]
+    try check(listing["error"] == nil, "hard-link deb listing failed: \(listing)")
+    try check(Set(texts.keys) == ["control"], "a nested or reserved control member was taken: \(texts.keys.sorted())")
+    try check((listing["scripts"] as? [String])?.isEmpty == true, "a nested postinst was reported as a script")
+
+    // A tar hard link installs as a link to the file, not as an empty file.
+    let prefix = root.appendingPathComponent("prefix")
+    let unpacked = try json(icli_deb_unpack_json(links.path, prefix.path, nil, 0))
+    try check(unpacked["error"] == nil, "hard-link deb unpack failed: \(unpacked)")
+    let tool = prefix.path + "/var/jb/usr/bin/tool", alias = prefix.path + "/var/jb/usr/bin/alias"
+    try check(try String(contentsOfFile: alias, encoding: .utf8) == "linked tool\n", "the hard link was installed empty")
+    let toolInode = try FileManager.default.attributesOfItem(atPath: tool)[.systemFileNumber] as? Int
+    let aliasInode = try FileManager.default.attributesOfItem(atPath: alias)[.systemFileNumber] as? Int
+    try check(toolInode != nil && toolInode == aliasInode, "the alias is a copy, not a hard link")
+
+    // Writing through a planted symlink is refused before any directory is made.
+    let staging = root.appendingPathComponent("staging")
+    try FileManager.default.createDirectory(at: staging, withIntermediateDirectories: true)
+    let escaped = try json(icli_deb_read_json(escape.path, staging.path))
+    try check((escaped["error"] as? String)?.contains("escapes") == true, "the symlink escape was not rejected: \(escaped)")
+    try check(!FileManager.default.fileExists(atPath: outside.appendingPathComponent("x").path), "directories were created outside the staging root")
+
+    // A member name that is not UTF-8 fails the read instead of throwing.
+    let invalid = root.appendingPathComponent("invalid.deb")
+    try arArchive(memberName: Data("data".utf8) + Data([0xFF, 0xFE]) + Data(".tar/".utf8), contents: Data("x".utf8)).write(to: invalid)
+    for result in [try json(icli_deb_read_json(invalid.path, nil)), try json(icli_deb_unpack_json(invalid.path, prefix.path, nil, 0))] {
+        try check(result["error"] is String, "a non-UTF-8 member name was accepted: \(result)")
+    }
+}
+
+func runJSONGuards() throws {
+    // NSJSONSerialization throws on these; the guards must answer nil instead.
+    try check(icli_json(["x": Double.nan]) == nil, "icli_json serialized NaN")
+    try check(icli_system_json(["x": Double.infinity]) == nil, "icli_system_json serialized infinity")
+    if let valid = icli_json(["x": 1]) { free(valid) } else { throw TestFailure.check("icli_json rejected a valid object") }
+    let bytes: [CChar] = [0x61, -1, 0x62, 0]
+    try check(icli_system_string(bytes, 4) == "a\u{FF}b", "a non-UTF-8 name was not decoded as Latin-1")
+    try check(icli_system_double(.nan) as? String == "nan", "a NaN double was not turned into text")
+    let safe = jsonSafe([
+        "nan": Double.nan,
+        "nested": ["inf": -Double.infinity, "date": Date(timeIntervalSince1970: 0), "data": Data([1, 2])],
+        "keys": NSDictionary(dictionary: [1: "one"]),
+    ] as [String: Any])
+    try check(JSONSerialization.isValidJSONObject(safe), "jsonSafe left a value JSONSerialization rejects: \(safe)")
+}
+
 do {
-    guard CommandLine.arguments.count == 2 else { throw TestFailure.check("usage: archive-locale-tests <deb>") }
+    guard CommandLine.arguments.count == 5 else {
+        throw TestFailure.check("usage: archive-locale-tests <deb> <hard-link deb> <escape deb> <outside dir>")
+    }
     try run(deb: URL(fileURLWithPath: CommandLine.arguments[1]))
-    print("PASS: Unicode IPA and deb names in the C locale, byte preservation, Mac metadata skipped, rejection checks, thread-local restoration")
+    try runDebSafety(
+        links: URL(fileURLWithPath: CommandLine.arguments[2]),
+        escape: URL(fileURLWithPath: CommandLine.arguments[3]),
+        outside: URL(fileURLWithPath: CommandLine.arguments[4]),
+    )
+    try runJSONGuards()
+    print("PASS: Unicode IPA and deb names in the C locale, byte preservation, Mac metadata skipped, rejection checks, thread-local restoration, deb hard links and control members, symlink escapes, non-UTF-8 member names, JSON guards")
 } catch {
     FileHandle.standardError.write(Data("FAIL: \(error)\n".utf8))
     exit(1)

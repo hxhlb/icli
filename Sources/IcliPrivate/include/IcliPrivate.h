@@ -36,6 +36,9 @@ void icli_screen_point_to_digitizer(double x, double y, double *nx, double *ny);
 bool icli_screenshot_jpeg(const char *path, float quality, int max_bytes, bool native_resolution);
 char *icli_ax_elements_json(int pid, int max_elements);
 char *icli_ax_element_at_json(int pid, double x, double y);
+/// Puts the system-wide accessibility switches that AX queries turned on back
+/// off. icli does this at exit; a long-running host calls it when it is done.
+void icli_ax_restore_switches(void);
 
 bool icli_hid_tap(double x, double y);
 bool icli_hid_double_tap(double x, double y, double interval);
