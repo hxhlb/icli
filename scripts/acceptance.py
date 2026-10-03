@@ -566,12 +566,16 @@ def install_ipa_container(d):
     # The TestHost-shaped fixture runs unsandboxed; the second is App Store-shaped
     # and gets a sandbox in its data container. Both are installed as signed.
     d.cli('app', 'install', '/tmp/icli-install-fixture.ipa', '--registration', 'user', expected=1, sudo=True)
-    for package, bundle in [('/tmp/icli-install-fixture.ipa', 'dev.owngoal.icli.InstallFixture'),
-                            ('/tmp/icli-container-fixture.ipa', 'dev.owngoal.icli.ContainerFixture')]:
+    # The container fixture carries a plug-in, which LaunchServices must list
+    # at its installed path for the extension to be found (Lakr233/vphone-cli#546).
+    for package, bundle, plugins in [
+            ('/tmp/icli-install-fixture.ipa', 'dev.owngoal.icli.InstallFixture', []),
+            ('/tmp/icli-container-fixture.ipa', 'dev.owngoal.icli.ContainerFixture', ['dev.owngoal.icli.ContainerFixture.Tunnel'])]:
         installed = d.cli('app', 'install', package, '--container', timeout=150, sudo=True)
         container, data, app = installed['bundle_container'], installed['data_container'], installed['bundle_path']
         try:
             assert installed['bundle_id'] == bundle and not installed['upgraded'], installed
+            assert installed['plugins'] == plugins and installed['unregistered_plugins'] == [], installed
             assert container.removeprefix('/private').startswith('/var/containers/Bundle/Application/'), container
             assert app.startswith(container + '/') and data.removeprefix('/private').startswith('/var/mobile/Containers/Data/Application/'), installed
             info = d.cli('app', 'info', bundle)
@@ -594,6 +598,7 @@ def install_ipa_container(d):
                                       'The same binary launches from the bootstrap install.')
             upgraded = d.cli('app', 'install', package, '--container', '--registration', 'system', timeout=150, sudo=True)
             assert upgraded['upgraded'] and upgraded['bundle_container'] == container and upgraded['data_container'] == data, upgraded
+            assert upgraded['plugins'] == plugins and upgraded['unregistered_plugins'] == [], upgraded
             assert d.cli('app', 'info', bundle)['type'] == 'System'
         finally:
             removed = d.cli('app', 'uninstall', bundle, '--force', sudo=True)

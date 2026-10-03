@@ -45,6 +45,32 @@ rm -rf "$root/container"
 mkdir -p "$container"
 cp "$app/IcliTestHost" "$container/IcliTestHost"
 stamp "$container" dev.owngoal.icli.ContainerFixture 'icli Container Fixture' "$root/container-entitlements.plist" --container
+# A plug-in, so a container install shows whether LaunchServices registered
+# it. Nothing configures the tunnel, so the extension is never launched.
+# Signing the app below signs it too, with the app's entitlements.
+extension="$container/PlugIns/IcliContainerFixtureTunnel.appex"
+mkdir -p "$extension"
+cp "$app/IcliTestHost" "$extension/IcliContainerFixtureTunnel"
+python3 - "$extension" <<'PY'
+import plistlib, sys
+from pathlib import Path
+bundle = sys.argv[1]
+identifier = 'dev.owngoal.icli.ContainerFixture.Tunnel'
+(Path(bundle) / 'Info.plist').write_bytes(plistlib.dumps({
+    'CFBundleIdentifier': identifier,
+    'CFBundleExecutable': 'IcliContainerFixtureTunnel',
+    'CFBundleName': 'IcliContainerFixtureTunnel',
+    'CFBundlePackageType': 'XPC!',
+    'CFBundleVersion': '1',
+    'CFBundleShortVersionString': '1.0',
+    'CFBundleSupportedPlatforms': ['iPhoneOS'],
+    'MinimumOSVersion': '15.0',
+    'NSExtension': {
+        'NSExtensionPointIdentifier': 'com.apple.networkextension.packet-tunnel',
+        'NSExtensionPrincipalClass': 'NSObject',
+    },
+}))
+PY
 ldid -S"$root/container-entitlements.plist" "$container"
 (cd "$root/container" && rm -f ../icli-container-fixture.ipa && zip -qr ../icli-container-fixture.ipa Payload)
 cat > "$root/deb/DEBIAN/control" <<CONTROL

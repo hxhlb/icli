@@ -236,6 +236,13 @@ char *icli_app_registration_json(const char *path) {
     if (!proxy) return icli_json_or_empty(@{@"registered": @NO, @"path": @(path)});
     NSMutableDictionary *result = [icli_ls_app_dictionary(proxy) mutableCopy];
     result[@"registered"] = @YES;
+    NSMutableArray *plugIns = [NSMutableArray array];
+    id registeredPlugIns = icli_ls_value(proxy, @"plugInKitPlugins");
+    for (id plugIn in [registeredPlugIns isKindOfClass:NSArray.class] ? registeredPlugIns : @[]) {
+        NSString *identifier = icli_ls_string(icli_ls_value(plugIn, @"pluginIdentifier"));
+        if (identifier) [plugIns addObject:identifier];
+    }
+    result[@"plugins"] = [plugIns sortedArrayUsingSelector:@selector(compare:)];
     return icli_json_or_empty(result);
 }
 

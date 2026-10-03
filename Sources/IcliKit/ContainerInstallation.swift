@@ -163,16 +163,18 @@ private func registrationRecord(
     return record
 }
 
-/// Registers a container app and its plug-ins, then reads the record back,
-/// adding the data container and whether the app is sandboxed in it.
+/// Registers a container app and the plug-ins inside it, then reads the
+/// record back, adding the data container and whether the app is sandboxed
+/// in it. Plug-ins are read from `app` itself: LaunchServices keeps each
+/// plug-in's path, so one recorded elsewhere (the staged copy) is never found.
 private func registerContainerApp(
     _ app: String,
     bundleID: String,
     executable: String,
-    plugIns: [PlugIn],
     registration: AppRegistrationType,
     created: inout [CreatedContainer],
 ) throws -> [String: Any] {
+    let plugIns = try appPlugIns(of: app, owner: bundleID)
     var record = try registrationRecord(
         bundleID: bundleID,
         executable: app + "/" + executable,
@@ -212,6 +214,9 @@ private func registerContainerApp(
     }
     registered["data_container"] = record["Container"]
     registered["containerized"] = record["IsContainerized"]
+    let listed = Set(registered["plugins"] as? [String] ?? [])
+    registered["plugins"] = plugIns.map(\.bundleID)
+    registered["unregistered_plugins"] = plugIns.map(\.bundleID).filter { !listed.contains($0) }
     return registered
 }
 
@@ -242,7 +247,9 @@ public func installIPAInContainer(
     defer { try? manager.removeItem(atPath: staged.stage) }
     try prepareApp(staged.app)
     let bundleID = staged.bundleID
-    let plugIns = try appPlugIns(of: staged.app, owner: bundleID)
+    // Refuses a plug-in that does not extend the app's identifier before
+    // anything is changed; registration reads them from the installed copy.
+    _ = try appPlugIns(of: staged.app, owner: bundleID)
     let existingContainer = try container("app", bundleID, create: false)["path"] as? String
     let previous = existingContainer.flatMap(appBundle(in:))
     if let existingContainer, previous != nil, !isManaged(existingContainer) {
@@ -289,7 +296,6 @@ public func installIPAInContainer(
             target,
             bundleID: bundleID,
             executable: staged.executable,
-            plugIns: plugIns,
             registration: registration,
             created: &created,
         )
@@ -301,7 +307,8 @@ public func installIPAInContainer(
             "data_container": record["data_container"] ?? "",
             "containerized": record["containerized"] ?? false,
             "registration": registration.rawValue,
-            "plugins": plugIns.map(\.bundleID),
+            "plugins": record["plugins"] ?? [],
+            "unregistered_plugins": record["unregistered_plugins"] ?? [],
             "method": "container",
             "upgraded": previous != nil,
         ]
@@ -319,7 +326,6 @@ public func installIPAInContainer(
                 previous,
                 bundleID: bundleID,
                 executable: executable,
-                plugIns: (try? appPlugIns(of: previous, owner: bundleID)) ?? [],
                 registration: previousType == "System" ? .system : .user,
                 created: &ignored,
             )
