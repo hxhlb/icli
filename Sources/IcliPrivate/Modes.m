@@ -100,3 +100,53 @@ int icli_low_power_mode_set(bool enabled) {
         service, set, enabled ? 1 : 0, @"ControlCenter"
     ) ? 0 : -3;
 }
+
+// The system time zone is the /var/db/timezone/localtime symlink into
+// /var/db/timezone/zoneinfo. Only tzlinkd (com.apple.tzlink) moves it, for
+// clients with com.apple.tzlink.allow, through libutil's tzlink(), which the
+// SDK does not declare. timed owns the automatic time zone and takes commands
+// through CoreTime from clients with com.apple.timed. tzlink and CoreTime's
+// getter wait for their daemon with no timeout, so each runs on a queue of its
+// own: a daemon that never answers costs a thread, not the caller.
+static BOOL runWithin(int64_t seconds, dispatch_block_t work) {
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        work();
+        dispatch_semaphore_signal(done);
+    });
+    return dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, seconds * NSEC_PER_SEC)) == 0;
+}
+
+static void *coreTimeSymbol(const char *name) {
+    void *coreTime = dlopen("/System/Library/PrivateFrameworks/CoreTime.framework/CoreTime", RTLD_NOW);
+    return coreTime ? dlsym(coreTime, name) : NULL;
+}
+
+int icli_automatic_time_zone_get(void) {
+    bool (*isEnabled)(void) = coreTimeSymbol("TMIsAutomaticTimeZoneEnabled");
+    if (!isEnabled) return -1;
+    __block bool enabled = false;
+    if (!runWithin(3, ^{ enabled = isEnabled(); })) return -2;
+    return enabled ? 1 : 0;
+}
+
+int icli_automatic_time_zone_set(bool enabled) {
+    // timed takes this command without a reply; the caller reads it back.
+    void (*setEnabled)(bool) = coreTimeSymbol("TMSetAutomaticTimeZoneEnabled");
+    if (!setEnabled) return -1;
+    setEnabled(enabled);
+    return 0;
+}
+
+int icli_time_zone_link(const char *name) {
+    void *libutil = dlopen("/usr/lib/libutil.dylib", RTLD_NOW);
+    int (*link)(const char *) = libutil ? dlsym(libutil, "tzlink") : NULL;
+    if (!link) return -1;
+    char *copy = strdup(name);
+    __block int error = 0;
+    BOOL answered = runWithin(5, ^{ error = link(copy); });
+    // A late answer still uses the copy, so it is freed only after one.
+    if (!answered) return -2;
+    free(copy);
+    return error;
+}

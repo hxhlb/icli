@@ -16,6 +16,9 @@
 | `device devmode enable` | Arm Developer Mode when it is off; returns `already_enabled` and `restart_required`. Does not restart the device | | see notes | any |
 | `device low-power get` | Whether Low Power Mode is on (`method: powerd`) | | no | any |
 | `device low-power set <on\|off>` | Turn Low Power Mode on or off through powerd, like Control Center; waits up to 3 seconds for its reply, then checks the new state | | no | any |
+| `device timezone get` | `identifier` (Olson name), `automatic` (Set Automatically), `seconds_from_gmt` | | no | any |
+| `device timezone set <identifier>` | Set the time zone to an Olson name such as `Asia/Shanghai` and turn Set Automatically off, as Settings does; running apps and SpringBoard switch at once. Returns `changed` | | no | any |
+| `device timezone automatic <on\|off>` | Turn Set Automatically on or off; `on` hands the zone back to timed | | no | any |
 | `device network` | Interface addresses | | no | unlocked |
 | `device ioreg` | IORegistry dump | `--plane IOService` | no | unlocked |
 | `device bootlogo` | Render a screen-sized JPEG 2000 boot logo from a PNG/JPEG mark | `--mark <image>`, `--output <file.jp2>` (both required), `--dark`, `--width`, `--height`, `--mark-points 128` | no | any |

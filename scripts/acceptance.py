@@ -882,6 +882,32 @@ def low_power_mode(d):
         assert d.cli('device', 'low-power', 'get')['enabled'] == original['enabled']
 
 
+@case('time_zone', 'controls', ['device timezone get', 'device timezone set', 'device timezone automatic'])
+def time_zone(d):
+    original = d.cli('device', 'timezone', 'get')
+    assert original['identifier'] and isinstance(original['automatic'], bool), original
+    # Two zones a whole hour apart, neither of them the original.
+    zones = [zone for zone in ['Asia/Tokyo', 'America/New_York', 'Europe/Paris'] if zone != original['identifier']][:2]
+    try:
+        for zone in zones:
+            applied = d.cli('device', 'timezone', 'set', zone)
+            assert applied['identifier'] == zone and applied['automatic'] is False and applied['changed'], applied
+            # A new process reads the zone from the link.
+            assert d.cli('device', 'timezone', 'get')['identifier'] == zone
+        repeated = d.cli('device', 'timezone', 'set', zones[-1])
+        assert repeated['changed'] is False, repeated
+        for name in ['Mars/Olympus', '../etc/passwd']:
+            d.cli('device', 'timezone', 'set', name, expected=1)
+        assert d.cli('device', 'timezone', 'get')['identifier'] == zones[-1]
+    finally:
+        d.cli('device', 'timezone', 'set', original['identifier'], expected=None)
+        if original['automatic']:
+            d.cli('device', 'timezone', 'automatic', 'on', expected=None)
+        restored = d.cli('device', 'timezone', 'get')
+        assert restored['identifier'] == original['identifier'], restored
+        assert restored['automatic'] == original['automatic'], restored
+
+
 @case('darwin_notifications', 'controls', ['notify post', 'notify get'])
 def darwin_notifications(d):
     name = f'dev.owngoal.icli.acceptance.{os.getpid()}'

@@ -57,6 +57,7 @@ Every `icli` command is a thin layer over a public IcliKit function, so a long-r
 | Location | `simulateLocation(latitude:longitude:altitude:horizontalAccuracy:verticalAccuracy:speed:course:)`, `clearSimulatedLocation()`, `currentLocation(timeout:)`. The simulation stays on after the calling process exits. |
 | Developer Mode | `developerModeStatus()`, `enableDeveloperMode()`. Enabling only arms it for the next restart. |
 | Low Power Mode | `lowPowerMode()`, `setLowPowerMode(_:)` |
+| Time zone | `timeZone()`, `setTimeZone(_:)`, `setAutomaticTimeZone(_:)`. Setting a zone turns the automatic time zone off first, so timed does not put its own back. |
 | Darwin notifications | `postDarwinNotification(_:state:)`, `darwinNotificationState(_:)` |
 | Clipboard | `clipboardInfo(imageOutput:)`, `clipboardImagePNG()`, `setClipboardImage(_:)`, next to `clipboardText()` and `setClipboard(_:)` |
 | Preferences | `readPreference`, `writePreference` and `deletePreference`, with `PreferenceUser` and `PreferenceValue`. Build a `PreferenceValue` directly, or parse command-line text with `init(text:type:)`. |

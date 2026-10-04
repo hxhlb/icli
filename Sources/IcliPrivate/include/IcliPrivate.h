@@ -137,6 +137,14 @@ char *icli_amfi_developer_mode_json(bool arm);
 int icli_low_power_mode_get(void);
 /// 0 on acceptance; -1 if unavailable, -2 on timeout, -3 on rejection.
 int icli_low_power_mode_set(bool enabled);
+/// timed's automatic time zone: 1 on, 0 off, -1 when CoreTime does not offer
+/// it, -2 when timed does not answer within 3 seconds.
+int icli_automatic_time_zone_get(void);
+/// Sends timed the setting without waiting; -1 when CoreTime does not offer it.
+int icli_automatic_time_zone_set(bool enabled);
+/// Asks tzlinkd to point /var/db/timezone/localtime at the Olson name. Returns
+/// tzlinkd's errno (0 on success), -1 without tzlink, -2 after 5 silent seconds.
+int icli_time_zone_link(const char *name);
 /// Posts a Darwin notification through notifyd, first setting its state when
 /// set_state is true. delivered reports whether this process's own listener
 /// received the post within a second. Returns a notify(3) status; 0 is success.

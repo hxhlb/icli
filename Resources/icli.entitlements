@@ -135,6 +135,10 @@
 	<true/>
 	<key>com.apple.powerd.lowpowermode.allow</key>
 	<true/>
+	<key>com.apple.timed</key>
+	<true/>
+	<key>com.apple.tzlink.allow</key>
+	<true/>
 	<key>com.apple.private.amfi.developer-mode-control</key>
 	<true/>
 	<key>com.apple.private.security.no-container</key>
