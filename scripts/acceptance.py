@@ -896,7 +896,7 @@ def time_zone(d):
             assert d.cli('device', 'timezone', 'get')['identifier'] == zone
         repeated = d.cli('device', 'timezone', 'set', zones[-1])
         assert repeated['changed'] is False, repeated
-        for name in ['Mars/Olympus', '../etc/passwd']:
+        for name in ['Mars/Olympus', '../etc/passwd', 'Asia']:
             d.cli('device', 'timezone', 'set', name, expected=1)
         assert d.cli('device', 'timezone', 'get')['identifier'] == zones[-1]
     finally:

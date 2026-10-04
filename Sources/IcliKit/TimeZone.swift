@@ -70,14 +70,21 @@ public func setAutomaticTimeZone(_ enabled: Bool) throws -> [String: Any] {
 /// `changed` is false when the device was already set to it by hand.
 public func setTimeZone(_ identifier: String) throws -> [String: Any] {
     let components = identifier.split(separator: "/", omittingEmptySubsequences: false)
+    var isDirectory: ObjCBool = false
     guard !components.contains(where: { $0.isEmpty || $0.hasPrefix(".") }),
-          FileManager.default.fileExists(atPath: zoneInfoDirectory + identifier)
+          FileManager.default.fileExists(atPath: zoneInfoDirectory + identifier, isDirectory: &isDirectory),
+          !isDirectory.boolValue
     else {
         throw IcliError.failed("'\(identifier)' is not a time zone in \(zoneInfoDirectory); pass an Olson name such as Asia/Shanghai")
     }
     let automaticChanged = try setAutomaticTimeZone(false)["changed"] as? Bool ?? false
     let linked = systemTimeZoneIdentifier() != identifier
     if linked {
+        // A zone that is not applied hands the automatic setting back as it was.
+        var applied = false
+        defer {
+            if !applied, automaticChanged { _ = try? setAutomaticTimeZone(true) }
+        }
         switch icli_time_zone_link(identifier) {
         case 0:
             break
@@ -93,6 +100,7 @@ public func setTimeZone(_ identifier: String) throws -> [String: Any] {
         guard systemTimeZoneIdentifier() == identifier else {
             throw IcliError.unavailable("tzlinkd accepted \(identifier), but \(localTimeLink) did not change.")
         }
+        applied = true
     }
     var state = try timeZone()
     state["changed"] = automaticChanged || linked
