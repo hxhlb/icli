@@ -89,6 +89,8 @@ OCR uses Vision and the captured image; there is no separate OCR entitlement in 
 | `com.apple.private.security.storage.DiagnosticReports.read-write` | `true` | Diagnostic report storage access; crash commands read reports. |
 | `com.apple.CommCenter.fine-grained` | `spi`, `data-allowed-write` | CoreTelephony policy query SPI and per-app data-policy write capability. |
 | `com.apple.powerd.lowpowermode.allow` | `true` | Connecting to powerd's Low Power Mode service to turn it on or off. Verified on iOS 18.5: without it powerd rejects the connection. |
+| `com.apple.timed` | `true` | Sending timed commands, here turning the automatic time zone off before `device timezone set` and on for `device timezone automatic on`. timed checks it for every command it does not let any client send (read from timed in iOS 27.0.1). |
+| `com.apple.tzlink.allow` | `true` | Asking tzlinkd to re-point `/var/db/timezone/localtime` for `device timezone set`; tzlinkd refuses a client without it (read from tzlinkd in iOS 27.0.1). |
 | `com.apple.private.amfi.developer-mode-control` | `true` | Arming Developer Mode through amfid, as vphoned does. Reading the status does not need it (verified on iOS 18.5); arming was not run on a test device. |
 
 ## Location

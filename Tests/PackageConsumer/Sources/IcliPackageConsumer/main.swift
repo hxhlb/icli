@@ -33,6 +33,9 @@ let deviceFeatureAPIs: [Any] = [
     enableDeveloperMode as () throws -> [String: Any],
     lowPowerMode as () throws -> [String: Any],
     setLowPowerMode as (Bool) throws -> [String: Any],
+    timeZone as () throws -> [String: Any],
+    setTimeZone as (String) throws -> [String: Any],
+    setAutomaticTimeZone as (Bool) throws -> [String: Any],
     clipboardInfo as (String?) throws -> [String: Any],
     clipboardImagePNG as () throws -> Data?,
     setClipboardImage as (Data) throws -> [String: Any],
@@ -48,7 +51,7 @@ let deviceFeatureAPIs: [Any] = [
     installPackage as (String, Bool, AppRegistrationType) throws -> [String: Any],
     uninstallApp as (String, Bool) throws -> [String: Any],
 ]
-precondition(deviceFeatureAPIs.count == 21)
+precondition(deviceFeatureAPIs.count == 24)
 let keychainMetadataAPI: (String?) throws -> [String: Any] = listKeychainDatabaseMetadata
 _ = keychainMetadataAPI
 // A host builds these values from its own protocol, not from command-line text.
@@ -59,6 +62,7 @@ precondition(AppRegistrationType(rawValue: "system") == .system)
 // Only reads run on the device. The write must be refused before cfprefsd sees it.
 let developerMode = try developerModeStatus()
 let lowPower = try lowPowerMode()
+let zone = try timeZone()
 var rejectsNonPropertyList = false
 do {
     _ = try writePreference(domain: "dev.owngoal.icli.PackageConsumer", key: "null", value: .plist([NSNull()]))
@@ -76,5 +80,6 @@ let report: [String: Any] = [
     "device_feature_api_count": deviceFeatureAPIs.count,
     "developer_mode": developerMode,
     "low_power_mode": lowPower,
+    "time_zone": zone,
 ]
 try print(String(decoding: JSONSerialization.data(withJSONObject: report, options: [.sortedKeys]), as: UTF8.self))

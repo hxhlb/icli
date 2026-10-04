@@ -5,7 +5,7 @@ import IcliKit
 struct Device: ParsableCommand {
     static var configuration = CommandConfiguration(
         abstract: "Device info and settings",
-        subcommands: [Info.self, Jetsam.self, Brightness.self, Volume.self, Rotation.self, Network.self, Ioreg.self, Devmode.self, LowPower.self, Reboot.self, Bootlogo.self],
+        subcommands: [Info.self, Jetsam.self, Brightness.self, Volume.self, Rotation.self, Network.self, Ioreg.self, Devmode.self, LowPower.self, Timezone.self, Reboot.self, Bootlogo.self],
     )
 }
 
@@ -199,6 +199,43 @@ extension Device {
             @Argument(help: "Turn Low Power Mode on or off.") var value: String
             func run() {
                 emit(allowWhenLocked: true, output) { try setLowPowerMode(parseOnOff(value)) }
+            }
+        }
+    }
+
+    struct Timezone: ParsableCommand {
+        static var configuration = CommandConfiguration(
+            commandName: "timezone",
+            abstract: "System time zone",
+            subcommands: [Get.self, Set.self, Automatic.self],
+        )
+        struct Get: ParsableCommand {
+            @OptionGroup var output: OutputOptions
+            func run() {
+                emit(allowWhenLocked: true, output) { try timeZone() }
+            }
+        }
+
+        struct Set: ParsableCommand {
+            static var configuration = CommandConfiguration(
+                abstract: "Set the time zone and turn the automatic time zone off",
+                discussion: "Running apps and SpringBoard switch at once. Settings does the same when a city is picked.",
+            )
+            @OptionGroup var output: OutputOptions
+            @Argument(help: "An Olson name, such as Asia/Shanghai.") var identifier: String
+            func run() {
+                emit(allowWhenLocked: true, output) { try setTimeZone(identifier) }
+            }
+        }
+
+        struct Automatic: ParsableCommand {
+            static var configuration = CommandConfiguration(
+                abstract: "Turn Set Automatically on or off; on hands the zone back to timed",
+            )
+            @OptionGroup var output: OutputOptions
+            @Argument(help: "Turn the automatic time zone on or off.") var value: String
+            func run() {
+                emit(allowWhenLocked: true, output) { try setAutomaticTimeZone(parseOnOff(value)) }
             }
         }
     }
