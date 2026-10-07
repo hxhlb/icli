@@ -23,4 +23,5 @@ if CommandLine.arguments.count > 1 {
         report["launch"] = error.payload
     }
 }
+
 try print(String(decoding: JSONSerialization.data(withJSONObject: report, options: [.sortedKeys]), as: UTF8.self))

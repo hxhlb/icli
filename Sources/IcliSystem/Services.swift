@@ -237,6 +237,8 @@ public func servicePlistPaths(_ paths: [String]) throws -> [String: Any] {
 /// parent directory this user cannot search.
 private func pathExists(_ path: String) -> Bool? {
     var info = stat()
-    if stat(path, &info) == 0 { return true }
+    if stat(path, &info) == 0 {
+        return true
+    }
     return errno == ENOENT || errno == ENOTDIR ? false : nil
 }

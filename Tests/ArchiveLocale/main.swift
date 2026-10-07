@@ -12,10 +12,12 @@ func check(_ condition: @autoclosure () throws -> Bool, _ message: String) throw
     guard try condition() else { throw TestFailure.check(message) }
 }
 
-func codeset() -> String { String(cString: nl_langinfo(CODESET)) }
+func codeset() -> String {
+    String(cString: nl_langinfo(CODESET))
+}
 
 extension Data {
-    mutating func appendLE<T: FixedWidthInteger>(_ value: T) {
+    mutating func appendLE(_ value: some FixedWidthInteger) {
         var littleEndian = value.littleEndian
         Swift.withUnsafeBytes(of: &littleEndian) { append(contentsOf: $0) }
     }
@@ -43,7 +45,7 @@ func zip(_ entries: [ZIPEntry]) -> Data {
         let checksum = entry.contents.withUnsafeBytes {
             UInt32(crc32(0, $0.bindMemory(to: Bytef.self).baseAddress, uInt($0.count)))
         } ^ (entry.corruptCRC ? 1 : 0)
-        output.appendLE(UInt32(0x04034B50))
+        output.appendLE(UInt32(0x0403_4B50))
         output.appendLE(UInt16(20))
         output.appendLE(UInt16(0x0800))
         output.appendLE(UInt16(0)) // stored
@@ -57,7 +59,7 @@ func zip(_ entries: [ZIPEntry]) -> Data {
         output.append(entry.name)
         output.append(entry.contents)
 
-        directory.appendLE(UInt32(0x02014B50))
+        directory.appendLE(UInt32(0x0201_4B50))
         directory.appendLE(UInt16(0x0314)) // Unix creator
         directory.appendLE(UInt16(20))
         directory.appendLE(UInt16(0x0800))
@@ -78,7 +80,7 @@ func zip(_ entries: [ZIPEntry]) -> Data {
     }
     let offset = UInt32(output.count)
     output.append(directory)
-    output.appendLE(UInt32(0x06054B50))
+    output.appendLE(UInt32(0x0605_4B50))
     output.appendLE(UInt16(0))
     output.appendLE(UInt16(0))
     output.appendLE(UInt16(entries.count))
@@ -103,8 +105,13 @@ func extract(_ archive: URL, _ destination: URL) throws -> [String: Any] {
 final class Observation: @unchecked Sendable {
     private let lock = NSLock()
     private var value = ""
-    func store(_ charset: String) { lock.lock(); value = charset; lock.unlock() }
-    func read() -> String { lock.lock(); defer { lock.unlock() }; return value }
+    func store(_ charset: String) {
+        lock.lock(); value = charset; lock.unlock()
+    }
+
+    func read() -> String {
+        lock.lock(); defer { lock.unlock() }; return value
+    }
 }
 
 func run(deb: URL) throws {
@@ -112,7 +119,9 @@ func run(deb: URL) throws {
     let original = uselocale(nil)
     let originalCodeset = codeset()
     try check(originalCodeset == "US-ASCII", "the test needs the C codeset")
-    func restored() -> Bool { uselocale(nil) == original && codeset() == originalCodeset }
+    func restored() -> Bool {
+        uselocale(nil) == original && codeset() == originalCodeset
+    }
 
     let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -129,9 +138,9 @@ func run(deb: URL) throws {
     let destination = root.appendingPathComponent("unicode")
     let result = try extract(archive, destination)
     try check(result["error"] == nil && result["entries"] as? Int == 2, "Unicode IPA extraction failed: \(result)")
-    try check(try Data(contentsOf: destination.appendingPathComponent(name)) == Data(content.utf8), "Unicode name or bytes changed")
-    try check(try Data(contentsOf: destination.appendingPathComponent(resourceName)) == Data(resourceBytes.utf8), "resource bytes changed")
-    try check(try Data(contentsOf: archive) == data, "input archive changed")
+    try check(Data(contentsOf: destination.appendingPathComponent(name)) == Data(content.utf8), "Unicode name or bytes changed")
+    try check(Data(contentsOf: destination.appendingPathComponent(resourceName)) == Data(resourceBytes.utf8), "resource bytes changed")
+    try check(Data(contentsOf: archive) == data, "input archive changed")
     try check(restored(), "IPA extraction changed the caller's locale")
 
     // IPA: the __MACOSX tree and AppleDouble files a Mac zips alongside are left out.
@@ -179,7 +188,7 @@ func run(deb: URL) throws {
     let prefix = root.appendingPathComponent("prefix")
     let unpacked = try json(icli_deb_unpack_json(deb.path, prefix.path, nil, 0))
     try check((unpacked["installed"] as? [String])?.contains(debName) == true && unpacked["error"] == nil, "Unicode deb unpack failed: \(unpacked)")
-    try check(try String(contentsOf: URL(fileURLWithPath: prefix.path + debName), encoding: .utf8) == "unicode deb\n", "unpacked deb bytes changed")
+    try check(String(contentsOf: URL(fileURLWithPath: prefix.path + debName), encoding: .utf8) == "unicode deb\n", "unpacked deb bytes changed")
     let dataTar = deb.deletingLastPathComponent().appendingPathComponent("data.tar.gz")
     guard let text = icli_tar_entry_text(dataTar.path, String(debName.dropFirst())) else {
         throw TestFailure.check("Unicode tar entry was not found")
@@ -223,7 +232,9 @@ func arArchive(memberName: Data, contents: Data) -> Data {
     output.append(field("0", 12) + field("0", 6) + field("0", 6) + field("100644", 8))
     output.append(field(String(contents.count), 10) + Data("`\n".utf8))
     output.append(contents)
-    if contents.count % 2 == 1 { output.append(0x0A) }
+    if contents.count % 2 == 1 {
+        output.append(0x0A)
+    }
     return output
 }
 
@@ -244,7 +255,7 @@ func runDebSafety(links: URL, escape: URL, outside: URL) throws {
     let unpacked = try json(icli_deb_unpack_json(links.path, prefix.path, nil, 0))
     try check(unpacked["error"] == nil, "hard-link deb unpack failed: \(unpacked)")
     let tool = prefix.path + "/var/jb/usr/bin/tool", alias = prefix.path + "/var/jb/usr/bin/alias"
-    try check(try String(contentsOfFile: alias, encoding: .utf8) == "linked tool\n", "the hard link was installed empty")
+    try check(String(contentsOfFile: alias, encoding: .utf8) == "linked tool\n", "the hard link was installed empty")
     let toolInode = try FileManager.default.attributesOfItem(atPath: tool)[.systemFileNumber] as? Int
     let aliasInode = try FileManager.default.attributesOfItem(atPath: alias)[.systemFileNumber] as? Int
     try check(toolInode != nil && toolInode == aliasInode, "the alias is a copy, not a hard link")
@@ -259,7 +270,7 @@ func runDebSafety(links: URL, escape: URL, outside: URL) throws {
     // A member name that is not UTF-8 fails the read instead of throwing.
     let invalid = root.appendingPathComponent("invalid.deb")
     try arArchive(memberName: Data("data".utf8) + Data([0xFF, 0xFE]) + Data(".tar/".utf8), contents: Data("x".utf8)).write(to: invalid)
-    for result in [try json(icli_deb_read_json(invalid.path, nil)), try json(icli_deb_unpack_json(invalid.path, prefix.path, nil, 0))] {
+    for result in try [json(icli_deb_read_json(invalid.path, nil)), json(icli_deb_unpack_json(invalid.path, prefix.path, nil, 0))] {
         try check(result["error"] is String, "a non-UTF-8 member name was accepted: \(result)")
     }
 }
@@ -268,7 +279,11 @@ func runJSONGuards() throws {
     // NSJSONSerialization throws on these; the guards must answer nil instead.
     try check(icli_json(["x": Double.nan]) == nil, "icli_json serialized NaN")
     try check(icli_system_json(["x": Double.infinity]) == nil, "icli_system_json serialized infinity")
-    if let valid = icli_json(["x": 1]) { free(valid) } else { throw TestFailure.check("icli_json rejected a valid object") }
+    if let valid = icli_json(["x": 1]) {
+        free(valid)
+    } else {
+        throw TestFailure.check("icli_json rejected a valid object")
+    }
     let bytes: [CChar] = [0x61, -1, 0x62, 0]
     try check(icli_system_string(bytes, 4) == "a\u{FF}b", "a non-UTF-8 name was not decoded as Latin-1")
     try check(icli_system_double(.nan) as? String == "nan", "a NaN double was not turned into text")

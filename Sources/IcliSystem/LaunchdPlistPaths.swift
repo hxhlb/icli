@@ -67,7 +67,9 @@ public enum LaunchdPlistPaths {
         let isPatched = job["__Patched"] as? Bool == true
         let arguments = job["ProgramArguments"] as? [Any]
         let program = job["Program"] as? String ?? arguments?.first as? String
-        if !isPatched, program?.hasPrefix("/rootfs/") == true { return nil }
+        if !isPatched, program?.hasPrefix("/rootfs/") == true {
+            return nil
+        }
         return isPatched ? { rerooted($0, root: root) } : { physical($0, root: root) }
     }
 
@@ -84,7 +86,9 @@ public enum LaunchdPlistPaths {
             plist["ProgramArguments"] = arguments
         }
         for key in pathKeys {
-            if let value = plist[key] as? String { plist[key] = move(key, value) }
+            if let value = plist[key] as? String {
+                plist[key] = move(key, value)
+            }
         }
         for key in pathListKeys {
             if let values = plist[key] as? [Any] {
@@ -95,7 +99,9 @@ public enum LaunchdPlistPaths {
         }
         if var environment = plist["EnvironmentVariables"] as? [String: Any] {
             for key in environmentPathKeys {
-                if let value = environment[key] as? String { environment[key] = move("EnvironmentVariables.\(key)", value) }
+                if let value = environment[key] as? String {
+                    environment[key] = move("EnvironmentVariables.\(key)", value)
+                }
             }
             plist["EnvironmentVariables"] = environment
         }
@@ -103,7 +109,9 @@ public enum LaunchdPlistPaths {
             var moved: [String: Any] = [:]
             for (path, value) in states.sorted(by: { $0.key < $1.key }) {
                 let key = move("KeepAlive.PathState", path)
-                if moved[key] == nil { moved[key] = value }
+                if moved[key] == nil {
+                    moved[key] = value
+                }
             }
             keepAlive["PathState"] = moved
             plist["KeepAlive"] = keepAlive
@@ -143,9 +151,15 @@ public enum LaunchdPlistPaths {
     /// libroothide's `jbroot()`.
     static func physical(_ value: String, root: String) -> String {
         guard value.hasPrefix("/") else { return value }
-        if value.hasPrefix("/rootfs/") { return String(value.dropFirst("/rootfs".count)) }
-        if isUnder(value, root: root) { return value }
-        if let earlier = rootPrefix(of: value) { return root + value.dropFirst(earlier.count) }
+        if value.hasPrefix("/rootfs/") {
+            return String(value.dropFirst("/rootfs".count))
+        }
+        if isUnder(value, root: root) {
+            return value
+        }
+        if let earlier = rootPrefix(of: value) {
+            return root + value.dropFirst(earlier.count)
+        }
         return root + value
     }
 
@@ -165,11 +179,19 @@ public enum LaunchdPlistPaths {
     public static func relative(_ value: String, root: String) -> String? {
         guard root != "/" else { return value }
         var spellings = [root]
-        if root.hasPrefix("/private/var/") { spellings.append(String(root.dropFirst("/private".count))) }
-        if root.hasPrefix("/var/") { spellings.append("/private" + root) }
+        if root.hasPrefix("/private/var/") {
+            spellings.append(String(root.dropFirst("/private".count)))
+        }
+        if root.hasPrefix("/var/") {
+            spellings.append("/private" + root)
+        }
         for spelling in spellings {
-            if value == spelling { return "/" }
-            if value.hasPrefix(spelling + "/") { return String(value.dropFirst(spelling.count)) }
+            if value == spelling {
+                return "/"
+            }
+            if value.hasPrefix(spelling + "/") {
+                return String(value.dropFirst(spelling.count))
+            }
         }
         return nil
     }
@@ -180,7 +202,9 @@ public enum LaunchdPlistPaths {
         var prefix = ""
         for component in value.split(separator: "/", omittingEmptySubsequences: true) {
             prefix += "/" + component
-            if isRootName(component) { return prefix }
+            if isRootName(component) {
+                return prefix
+            }
         }
         return nil
     }

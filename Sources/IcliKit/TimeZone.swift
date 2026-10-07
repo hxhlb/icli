@@ -30,9 +30,9 @@ private func automaticTimeZoneEnabled() throws -> Bool? {
 public func timeZone() throws -> [String: Any] {
     let identifier = systemTimeZoneIdentifier()
     let zone = identifier.flatMap(TimeZone.init(identifier:))
-    return [
+    return try [
         "identifier": identifier.map { $0 as Any } ?? NSNull(),
-        "automatic": try automaticTimeZoneEnabled().map { $0 as Any } ?? NSNull(),
+        "automatic": automaticTimeZoneEnabled().map { $0 as Any } ?? NSNull(),
         "seconds_from_gmt": zone.map { $0.secondsFromGMT() as Any } ?? NSNull(),
     ]
 }
@@ -83,7 +83,9 @@ public func setTimeZone(_ identifier: String) throws -> [String: Any] {
         // A zone that is not applied hands the automatic setting back as it was.
         var applied = false
         defer {
-            if !applied, automaticChanged { _ = try? setAutomaticTimeZone(true) }
+            if !applied, automaticChanged {
+                _ = try? setAutomaticTimeZone(true)
+            }
         }
         switch icli_time_zone_link(identifier) {
         case 0:

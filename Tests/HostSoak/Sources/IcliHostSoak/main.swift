@@ -13,7 +13,9 @@ var report: [String: Any] = [:]
 
 func check(_ name: String, _ condition: Bool, _ detail: @autoclosure () -> Any) {
     report[name] = ["passed": condition, "detail": detail()]
-    if !condition { failures.append(name) }
+    if !condition {
+        failures.append(name)
+    }
 }
 
 func footprintMB() -> Double {
@@ -65,11 +67,14 @@ let captures = onWorker { () -> Int in
             _ = screenInfo()
             _ = rotationInfo()
             let path = scratch + "/shot-\(index % 4).jpg"
-            if (try? takeScreenshot(path: path)) != nil { done += 1 }
+            if (try? takeScreenshot(path: path)) != nil {
+                done += 1
+            }
         }
     }
     return done
 }
+
 let peak = footprintMB()
 // The system frees each capture's surface a few seconds after the image is
 // released, so a burst peaks and then settles. Before 0.7.11 it never did.
@@ -106,15 +111,18 @@ for worker in 0 ..< 8 {
                 } catch {
                     // An app without accessibility or a refused privilege is
                     // an answer; the process surviving is what is checked.
-                    if name != "elements" { errors.add("\(name): \(error)") }
+                    if name != "elements" {
+                        errors.add("\(name): \(error)")
+                    }
                 }
             }
         }
     }
 }
+
 group.wait()
 check("concurrent_reads", errors.count == 0, [
-    "errors": errors.compactMap { $0 as? String }.prefix(10).map { $0 },
+    "errors": errors.compactMap { $0 as? String }.prefix(10).map(\.self),
     "growth_mb": footprintMB() - concurrentFootprint,
 ])
 
@@ -124,7 +132,7 @@ let syslog = onWorker { try? captureSyslog(seconds: 2, maxLines: 50) }
 let syslogCPU = cpuSeconds() - cpuBefore
 check("syslog_worker_wait", syslog != nil && syslogCPU < 1.0, ["cpu_seconds": syslogCPU])
 
-// 4. Plists and preferences that hold non-finite reals.
+/// 4. Plists and preferences that hold non-finite reals.
 let plistPath = scratch + "/nan.plist"
 try """
 <?xml version="1.0" encoding="UTF-8"?>
@@ -143,6 +151,7 @@ check("nan_preference", encodable(preference), preference)
 for key in ["nan", "list"] {
     CFPreferencesSetValue(key as CFString, nil, domain as CFString, "mobile" as CFString, kCFPreferencesAnyHost)
 }
+
 CFPreferencesSynchronize(domain as CFString, "mobile" as CFString, kCFPreferencesAnyHost)
 
 // 5. A blocking XPC request answers, or fails, within its timeout.
@@ -159,6 +168,7 @@ func switchesOn() -> [Bool] {
         return unsafeBitCast(symbol, to: (@convention(c) () -> Bool).self)()
     }
 }
+
 // A query needs an unlocked device with an app in front: Settings, which
 // every device has, and then back to the home screen.
 _ = try? launchApp("com.apple.Preferences")
@@ -176,6 +186,7 @@ if lockState()["locked"] as? Bool == true {
         "initial": initial, "during_query": during, "after_restore": restored, "query_error": queryError,
     ])
 }
+
 _ = try? pressButton("home")
 
 // 7. The CLI's printer survives what JSONSerialization would throw on.

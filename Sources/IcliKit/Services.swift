@@ -102,7 +102,9 @@ private func replaceKeepingOwnership(_ path: String, with data: Data) throws {
         var offset = 0
         while offset < buffer.count {
             let count = write(fd, buffer.baseAddress! + offset, buffer.count - offset)
-            if count <= 0 { return false }
+            if count <= 0 {
+                return false
+            }
             offset += count
         }
         return true
