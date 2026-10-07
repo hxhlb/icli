@@ -7,9 +7,7 @@
 + (id)applicationProxyForIdentifier:(NSString *)identifier;
 - (NSArray *)allInstalledApplications;
 - (BOOL)uninstallApplication:(NSString *)bundleID withOptions:(id)options;
-- (BOOL)registerApplication:(NSURL *)url;
 - (BOOL)unregisterApplication:(NSURL *)url;
-- (BOOL)registerApplicationDictionary:(NSDictionary *)dict;
 - (BOOL)registerContainerizedApplicationWithInfoDictionaries:(NSArray *)infos
                                                operationUUID:(NSUUID *)uuid
                                               requestContext:(id)context
@@ -53,129 +51,9 @@ bool icli_uninstall_app(const char *bundle_id) {
     return [ws uninstallApplication:[NSString stringWithUTF8String:bundle_id] withOptions:nil];
 }
 
-static BOOL bundleHasSettingsBundle(NSString *path) {
-    return [NSFileManager.defaultManager
-        fileExistsAtPath:[path stringByAppendingPathComponent:@"Settings.bundle/Root.plist"]];
-}
-
-/// Whether LaunchServices' record is of the build on disk; a build that is
-/// not a string, on either side, cannot be told apart and counts as current.
-/// The proxy's bundleVersion is the string as written; LSApplicationRecord's
-/// is not.
-static BOOL registeredBuildIsCurrent(id proxy, NSDictionary *info) {
-    id build = info[@"CFBundleVersion"];
-    NSString *registeredBuild = icli_ls_string(icli_ls_value(proxy, @"bundleVersion"));
-    return ![build isKindOfClass:NSString.class] || !registeredBuild || [registeredBuild isEqual:build];
-}
-
-/// Whether a registration from the Info.plist can stand in for this record:
-/// it spells out no data container, group containers or plug-ins, so a
-/// record that has any is kept. No record is replaceable.
-static BOOL recordIsReplaceable(id proxy) {
-    return ![icli_ls_value(proxy, @"isContainerized") boolValue] && !icli_ls_value(proxy, @"dataContainerURL") &&
-        ![icli_ls_value(proxy, @"groupContainerURLs") count] && ![icli_ls_value(proxy, @"plugInKitPlugins") count];
-}
-
 static NSString *normalizedAppPath(NSString *path);
 static NSDictionary<NSString *, id> *registeredAppsByPath(void);
-
-/// What the containerized interface is given for a bundle outside any
-/// container: the keys vpregister sends, the set shown to register
-/// bootstrap apps on iOS 27, with the dictionary's application type, the
-/// settings-bundle mark, and not deletable, as uicache registers them.
-static NSDictionary *containerizedRecord(NSDictionary *dict, NSString *bundleID) {
-    NSMutableDictionary *record = [@{
-        @"Path": dict[@"Path"],
-        @"CFBundleIdentifier": bundleID,
-        @"CodeInfoIdentifier": bundleID,
-        @"ApplicationType": dict[@"ApplicationType"],
-        @"CompatibilityState": @0,
-        @"SignerIdentity": @"Apple iPhone OS Application Signing",
-        @"SignerOrganization": @"Apple Inc.",
-        @"IsAdHocSigned": @YES,
-        @"SignatureVersion": @132352,
-        @"IsDeletable": @NO,
-    } mutableCopy];
-    if (dict[@"HasSettingsBundle"]) record[@"HasSettingsBundle"] = dict[@"HasSettingsBundle"];
-    return record;
-}
-
-/// Registers `dict` (an Info.plist with Path and ApplicationType) through the
-/// containerized interface, then waits up to a second for LaunchServices to
-/// list this build of the bundle at its path.
-static BOOL registerContainerized(id ws, NSDictionary *dict) {
-    NSString *bundleID = dict[@"CFBundleIdentifier"];
-    if (![bundleID isKindOfClass:NSString.class] || !bundleID.length) return NO;
-    if (!icli_ls_register_containerized(ws, containerizedRecord(dict, bundleID), NULL)) return NO;
-    Class proxyClass = NSClassFromString(@"LSApplicationProxy");
-    if (![proxyClass respondsToSelector:@selector(applicationProxyForIdentifier:)]) return NO;
-    NSString *path = normalizedAppPath(dict[@"Path"]);
-    for (int attempt = 0; attempt < 10; attempt++) {
-        if (attempt) usleep(100 * 1000);
-        id proxy = [proxyClass applicationProxyForIdentifier:bundleID];
-        NSString *registeredPath = icli_ls_string(icli_ls_value(proxy, @"bundleURL"));
-        if (registeredPath && [normalizedAppPath(registeredPath) isEqual:path])
-            return registeredBuildIsCurrent(proxy, dict);
-    }
-    return NO;
-}
-
-/// On iOS 26, registerApplication: refused a new bundle (Saily's) and
-/// answered YES for one it already had without reading it again, and it never
-/// records HasSettingsBundle, without which the Settings app shows no page
-/// for the app. So the record is read back, and one that is missing, of
-/// another build or wrong about the settings bundle is registered from the
-/// Info.plist instead, unless it holds what that registration would drop. A
-/// registration whose record cannot be read back is left as it is, and one
-/// that leaves a record of another build has failed.
-///
-/// iOS 27 answers registerApplicationDictionary: with NO and registers
-/// nothing, so when that leaves no record of this build, the dictionary is
-/// registered through the containerized interface, which works where lsd lets
-/// the caller through. A current record wrong only about the settings bundle
-/// is kept rather than replaced this way.
-static BOOL registerAppAtPath(NSString *path) {
-    id ws = icli_ls_workspace();
-    if (!ws || path.length == 0) {
-        return NO;
-    }
-    NSDictionary *info = [NSDictionary
-        dictionaryWithContentsOfFile:[path stringByAppendingPathComponent:@"Info.plist"]];
-    BOOL hasSettingsBundle = bundleHasSettingsBundle(path);
-    BOOL registered = [ws respondsToSelector:@selector(registerApplication:)]
-        && [ws registerApplication:[NSURL fileURLWithPath:path]];
-    id proxy = registeredAppsByPath()[normalizedAppPath(path)];
-    if (proxy ? !recordIsReplaceable(proxy) : registered) {
-        return registered;
-    }
-    BOOL current = registered && registeredBuildIsCurrent(proxy, info);
-    if (current && [icli_ls_value(proxy, @"hasSettingsBundle") boolValue] == hasSettingsBundle) {
-        return YES;
-    }
-    if (!info) {
-        return current;
-    }
-    NSMutableDictionary *dict = [info mutableCopy];
-    dict[@"Path"] = path;
-    if (!dict[@"ApplicationType"]) {
-        dict[@"ApplicationType"] = @"System";
-    }
-    if (hasSettingsBundle) {
-        dict[@"HasSettingsBundle"] = @YES;
-    }
-    if ([ws respondsToSelector:@selector(registerApplicationDictionary:)] && [ws registerApplicationDictionary:dict]) {
-        return YES;
-    }
-    return current || registerContainerized(ws, dict);
-}
-
-bool icli_register_app(const char *path) {
-    icli_private_init();
-    if (!path) {
-        return false;
-    }
-    return registerAppAtPath([NSString stringWithUTF8String:path]);
-}
+static NSString *proxyBundleID(id proxy);
 
 bool icli_unregister_app(const char *path) {
     icli_private_init();
@@ -256,15 +134,57 @@ char *icli_app_registration_json(const char *path) {
     return icli_json_or_empty(result);
 }
 
-static NSArray<NSString *> *appBundlesInDirectory(NSString *directory, NSError **error) {
-    NSMutableArray *paths = [NSMutableArray array];
-    NSArray *names = [NSFileManager.defaultManager contentsOfDirectoryAtPath:directory error:error];
-    if (!names) return nil;
-    for (NSString *name in names) {
-        NSString *path = [directory stringByAppendingPathComponent:name];
-        if ([name hasSuffix:@".app"] && [NSFileManager.defaultManager fileExistsAtPath:[path stringByAppendingPathComponent:@"Info.plist"]]) [paths addObject:path];
+/// The part of a record that a uicache registration sets, for an app or one
+/// of its plug-ins. URLs become paths, so the result is a property list.
+static NSDictionary *registrationOfProxy(id proxy, NSString *bundleID) {
+    NSMutableDictionary *record = [NSMutableDictionary dictionary];
+    record[@"bundle_id"] = bundleID;
+    NSString *path = icli_ls_string(icli_ls_value(proxy, @"bundleURL"));
+    if (path) record[@"path"] = normalizedAppPath(path);
+    record[@"build"] = icli_ls_string(icli_ls_value(proxy, @"bundleVersion"));
+    record[@"version"] = icli_ls_string(icli_ls_value(proxy, @"shortVersionString"));
+    record[@"type"] = icli_ls_string(icli_ls_value(proxy, @"applicationType"));
+    record[@"signer"] = icli_ls_string(icli_ls_value(proxy, @"signerIdentity"));
+    record[@"containerized"] = @([icli_ls_value(proxy, @"isContainerized") boolValue]);
+    record[@"data_container"] = icli_ls_string(icli_ls_value(proxy, @"dataContainerURL"));
+    record[@"settings"] = @([icli_ls_value(proxy, @"hasSettingsBundle") boolValue]);
+    id environment = icli_ls_value(proxy, @"environmentVariables");
+    if ([environment isKindOfClass:NSDictionary.class]) record[@"environment"] = environment;
+    id groups = icli_ls_value(proxy, @"groupContainerURLs");
+    if ([groups isKindOfClass:NSDictionary.class])
+        record[@"groups"] = [[groups allKeys] sortedArrayUsingSelector:@selector(compare:)];
+    id entitlements = icli_ls_value(proxy, @"entitlements");
+    if ([entitlements isKindOfClass:NSDictionary.class]) record[@"entitlements"] = entitlements;
+    return record;
+}
+
+char *icli_app_records_plist(void) {
+    icli_private_init();
+    id ws = icli_ls_workspace();
+    if (![ws respondsToSelector:@selector(allInstalledApplications)]) return NULL;
+    NSMutableArray *records = [NSMutableArray array];
+    for (id proxy in [ws allInstalledApplications]) {
+        NSString *bundleID = proxyBundleID(proxy);
+        if (!bundleID) continue;
+        NSMutableDictionary *record = [registrationOfProxy(proxy, bundleID) mutableCopy];
+        NSMutableArray *plugIns = [NSMutableArray array];
+        id registeredPlugIns = icli_ls_value(proxy, @"plugInKitPlugins");
+        for (id plugIn in [registeredPlugIns isKindOfClass:NSArray.class] ? registeredPlugIns : @[]) {
+            NSString *identifier = icli_ls_string(icli_ls_value(plugIn, @"pluginIdentifier"));
+            if (identifier) [plugIns addObject:registrationOfProxy(plugIn, identifier)];
+        }
+        record[@"plugins"] = plugIns;
+        [records addObject:record];
     }
-    return [paths sortedArrayUsingSelector:@selector(compare:)];
+    NSData *data = [NSPropertyListSerialization dataWithPropertyList:records
+                                                              format:NSPropertyListXMLFormat_v1_0
+                                                             options:0
+                                                               error:nil];
+    return data ? strndup(data.bytes, data.length) : NULL;
+}
+
+char *icli_normalized_app_path(const char *path) {
+    return path ? strdup(normalizedAppPath(@(path)).fileSystemRepresentation) : NULL;
 }
 
 static NSString *proxyBundleID(id proxy) {
@@ -275,85 +195,6 @@ static NSString *proxyBundleID(id proxy) {
 /// Whether `path` is directly inside the directory that `prefix` (ending in "/") names.
 static BOOL isDirectChild(NSString *path, NSString *prefix) {
     return [path hasPrefix:prefix] && ![[path substringFromIndex:prefix.length] containsString:@"/"];
-}
-
-/// Reconcile by bundle ID, resolved path and build, so an app updated in
-/// place is registered again when registerAppAtPath can replace its record.
-/// Re-registering unchanged apps can terminate them (upstream uikittools-ng
-/// 627e1ee). A moved app must be
-/// registered before removing stale paths, since both records share an ID.
-char *icli_apps_refresh_json(const char *directory) {
-    icli_private_init();
-    if (!directory) return icli_json_or_empty(@{@"error": @"directory required"});
-    NSString *root = normalizedAppPath(@(directory));
-    BOOL isDirectory = NO;
-    if (![NSFileManager.defaultManager fileExistsAtPath:root isDirectory:&isDirectory] || !isDirectory)
-        return icli_json_or_empty(@{@"error": [@"not a directory: " stringByAppendingString:root]});
-    NSError *error = nil;
-    NSArray *paths = appBundlesInDirectory(root, &error);
-    if (!paths)
-        return icli_json_or_empty(@{@"error": error.localizedDescription ?: @"could not list application directory"});
-    NSDictionary *before = registeredAppsByPath();
-    if (!before) return icli_json_or_empty(@{@"error": @"LaunchServices application list unavailable"});
-    NSMutableDictionary *installed = [NSMutableDictionary dictionary];
-    NSMutableDictionary *infos = [NSMutableDictionary dictionary];
-    for (NSString *path in paths) {
-        NSDictionary *info = [NSDictionary
-            dictionaryWithContentsOfFile:[path stringByAppendingPathComponent:@"Info.plist"]];
-        NSString *bundleID = info[@"CFBundleIdentifier"];
-        if (![bundleID isKindOfClass:NSString.class] || !bundleID.length)
-            return icli_json_or_empty(@{@"error": [@"missing bundle identifier: " stringByAppendingString:path]});
-        if (installed[bundleID])
-            return icli_json_or_empty(@{@"error": [@"duplicate bundle identifier: " stringByAppendingString:bundleID]});
-        installed[bundleID] = path;
-        infos[bundleID] = info;
-    }
-    NSMutableArray *registered = [NSMutableArray array],
-        *failed = [NSMutableArray array],
-        *unregistered = [NSMutableArray array],
-        *unchanged = [NSMutableArray array];
-    for (NSString *bundleID in [[installed allKeys] sortedArrayUsingSelector:@selector(compare:)]) {
-        NSString *path = installed[bundleID];
-        id proxy = before[normalizedAppPath(path)];
-        NSString *registeredID = proxyBundleID(proxy);
-        if ([registeredID isEqual:bundleID] && (registeredBuildIsCurrent(proxy, infos[bundleID]) || !recordIsReplaceable(proxy))) {
-            [unchanged addObject:path];
-            continue;
-        }
-        if (registerAppAtPath(path)) [registered addObject:path];
-        else [failed addObject:path];
-    }
-    NSString *prefix = [root stringByAppendingString:@"/"];
-    NSDictionary *byPath = registeredAppsByPath();
-    if (!byPath)
-        return icli_json_or_empty(@{@"error": @"LaunchServices application list unavailable after registration"});
-    for (NSString *path in [[byPath allKeys] sortedArrayUsingSelector:@selector(compare:)]) {
-        if (!isDirectChild(path, prefix) || [NSFileManager.defaultManager fileExistsAtPath:path]) continue;
-        NSString *bundleID = proxyBundleID(byPath[path]);
-        // Do not unregister the same ID we just moved (or failed to move).
-        if (bundleID && installed[bundleID]) continue;
-        if (icli_unregister_app(path.UTF8String)) [unregistered addObject:path];
-        else [failed addObject:path];
-    }
-    NSDictionary *after = registeredAppsByPath();
-    if (!after)
-        return icli_json_or_empty(@{@"error": @"LaunchServices application list unavailable during verification"});
-    NSMutableArray *missing = [NSMutableArray array];
-    for (NSString *bundleID in installed) {
-        NSString *path = installed[bundleID];
-        id proxy = after[normalizedAppPath(path)];
-        NSString *registeredID = proxyBundleID(proxy);
-        if (![registeredID isEqual:bundleID]) [missing addObject:path];
-    }
-    for (NSString *path in unregistered) if (after[path]) [missing addObject:path];
-    return icli_json_or_empty(@{
-        @"directory": root,
-        @"registered": registered,
-        @"unchanged": unchanged,
-        @"unregistered": unregistered,
-        @"failed": failed,
-        @"unverified": missing
-    });
 }
 
 /// Unregisters every registered application whose bundle lives directly in `directory`.

@@ -14,9 +14,9 @@
 | `app kill <bundle-id>` | SIGTERM the app's processes and wait for them to exit | `--force` required | no | unlocked |
 | `app install <path>` | `.deb` → native package install; `.ipa` → install into the bootstrap and register; `.app` → register | `--container` installs an `.ipa` into its own app container (see below); `--registration user\|system` (default user) | required for .deb and .ipa | unlocked |
 | `app uninstall <bundle-id>` | Remove an app that icli installed from an IPA, with its app and data containers for a `--container` install | `--force`; `--package` treats the argument as a Debian package name (needs `--force`) | required | unlocked |
-| `app register <path.app>` | Register one bundle with LaunchServices and read the record back | | usually | any |
+| `app register <path.app>` | `uicache -p`: register one bootstrap or icli-installed bundle with its entitlements, containers and plug-ins, and read the record back; refuses Apple's and other installers' apps | | usually | any |
 | `app unregister <path.app>` | Unregister one bundle | `--force` required | usually | any |
-| `app refresh` | Register new, moved or updated apps and drop stale ones | `--directory <dir>` (default: the bootstrap's /Applications) | usually | any |
+| `app refresh` | `uicache -a`: register new, moved, changed or incompletely registered apps, drop stale ones, and skip Apple's and other installers' apps; fails with `refresh_incomplete` when a record still differs | `--directory <dir>` (default: the bootstrap's /Applications) | usually | any |
 | `app unregister-dir <dir>` | Unregister every app directly inside a directory | `--force` required | usually | any |
 | `app network get <bundle-id>` | Wi-Fi and cellular data policy | | no | any |
 | `app network repair <bundle-id>` | Set both policies to always-allow and read them back | | usually | any |

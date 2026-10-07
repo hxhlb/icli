@@ -19,7 +19,7 @@ struct App: ParsableCommand {
 extension App {
     struct Refresh: ParsableCommand {
         static var configuration = CommandConfiguration(
-            abstract: "Register new, moved or updated apps, skip unchanged apps, and drop stale registrations",
+            abstract: "Register new, moved, changed or incompletely registered apps, skip unchanged apps, and drop stale registrations",
         )
         @OptionGroup var output: OutputOptions
         @Option(help: "Directory of .app bundles (default: the bootstrap's /Applications)") var directory: String?

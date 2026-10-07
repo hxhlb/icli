@@ -3,6 +3,13 @@ import IcliSystem
 
 /// Read public Mach-O metadata without launching ldid or inspecting process memory.
 func machOInfo(at path: String) throws -> [String: Any] {
+    let signing = try machOSigning(at: path)
+    // Entitlements are a plist and may hold data, dates or non-finite reals.
+    return ["encrypted": signing.encrypted, "entitlements": jsonSafe(signing.entitlements)]
+}
+
+/// Whether the arm64 slice is encrypted, and its entitlements as signed.
+func machOSigning(at path: String) throws -> (encrypted: Bool, entitlements: [String: Any]) {
     let data = try Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe)
     func u32(_ offset: Int, bigEndian: Bool = false) throws -> UInt32 {
         guard offset >= 0, offset <= data.count - 4 else { throw IcliError.failed("truncated Mach-O metadata") }
@@ -78,6 +85,5 @@ func machOInfo(at path: String) throws -> [String: Any] {
         }
         offset += size
     }
-    // Entitlements are a plist and may hold data, dates or non-finite reals.
-    return ["encrypted": encrypted, "entitlements": jsonSafe(entitlements)]
+    return (encrypted, entitlements)
 }

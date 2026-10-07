@@ -14,26 +14,17 @@ public enum AppRegistrationType: String, CaseIterable {
 private let containerMarker = "_icli"
 private let managedMarkers = [containerMarker, "_VPhone", "_TrollStore", "_TrollStoreLite"]
 
-private struct CreatedContainer {
-    let kind: String
-    let identifier: String
-}
-
 private struct PlugIn {
     let path: String
     let bundleID: String
     let executable: String
 }
 
-private func container(_ kind: String, _ identifier: String, create: Bool) throws -> [String: Any] {
-    try decodeBridgeJSON(takeCString(icli_container_json(kind, identifier, create)), "container response")
-}
-
 private func destroyContainer(_ kind: String, _ identifier: String) throws -> [String: Any] {
     try decodeBridgeJSON(takeCString(icli_container_destroy_json(kind, identifier)), "container response")
 }
 
-private func isManaged(_ bundleContainer: String) -> Bool {
+func isManaged(_ bundleContainer: String) -> Bool {
     managedMarkers.contains { FileManager.default.fileExists(atPath: bundleContainer + "/" + $0) }
 }
 
@@ -104,119 +95,27 @@ private func isMachO(_ path: String) -> Bool {
         .contains(magic.withUnsafeBytes { $0.load(as: UInt32.self) })
 }
 
-/// The part of a LaunchServices registration an app and its plug-ins share,
-/// in the shape installd records: entitlements, data container, group
-/// containers and sandbox environment. Containers created for it are added
-/// to `created`.
-private func registrationRecord(
-    bundleID: String,
-    executable: String,
-    dataKind: String,
-    created: inout [CreatedContainer],
-) throws -> [String: Any] {
-    let entitlements = try machOInfo(at: executable)["entitlements"] as? [String: Any] ?? [:]
-    let containerized = entitlements["com.apple.private.security.no-container"] as? Bool != true
-        && entitlements["com.apple.private.security.container-required"] as? Bool != false
-    let dataID = entitlements["com.apple.private.security.container-required"] as? String ?? bundleID
-    let data = try container(dataKind, dataID, create: true)
-    guard let dataPath = data["path"] as? String else { throw IcliError.failed("no data container for \(bundleID)") }
-    if data["existed"] as? Bool == false {
-        created.append(CreatedContainer(kind: dataKind, identifier: dataID))
-    }
-    let home = containerized ? dataPath : "/var/mobile"
-    var record: [String: Any] = [
-        "CFBundleIdentifier": bundleID,
-        "CodeInfoIdentifier": bundleID,
-        "CompatibilityState": 0,
-        "IsContainerized": containerized,
-        "Container": dataPath,
-        "EnvironmentVariables": [
-            "CFFIXED_USER_HOME": home,
-            "HOME": home,
-            "TMPDIR": containerized ? dataPath + "/tmp" : "/var/tmp",
-        ],
-        "Entitlements": entitlements,
-        "SignerOrganization": "Apple Inc.",
-        "SignatureVersion": 132_352,
-        "SignerIdentity": "Apple iPhone OS Application Signing",
-    ]
-    if let team = entitlements["com.apple.developer.team-identifier"] as? String {
-        record["TeamIdentifier"] = team
-    }
-    var groups: [String: String] = [:]
-    for (key, kind, flag) in [("com.apple.security.application-groups", "group", "HasAppGroupContainers"),
-                              ("com.apple.security.system-groups", "system-group", "HasSystemGroupContainers")]
-    {
-        for identifier in entitlements[key] as? [String] ?? [] {
-            let group = try container(kind, identifier, create: true)
-            guard let path = group["path"] as? String else { continue }
-            if group["existed"] as? Bool == false {
-                created.append(CreatedContainer(kind: kind, identifier: identifier))
-            }
-            groups[identifier] = path
-            record[flag] = true
-        }
-    }
-    if !groups.isEmpty {
-        record["GroupContainers"] = groups
-    }
-    return record
-}
-
-/// Registers a container app and the plug-ins inside it, then reads the
-/// record back, adding the data container and whether the app is sandboxed
-/// in it. Plug-ins are read from `app` itself: LaunchServices keeps each
-/// plug-in's path, so one recorded elsewhere (the staged copy) is never found.
+/// Registers a container app and the plug-ins inside it as Procursus'
+/// uicache would, with the given type and deletable, then reads the record
+/// back, adding the data container and whether the app is sandboxed in it.
+/// Plug-ins are read from `app` itself: LaunchServices keeps each plug-in's
+/// path, so one recorded elsewhere (the staged copy) is never found.
 private func registerContainerApp(
     _ app: String,
-    bundleID: String,
-    executable: String,
     registration: AppRegistrationType,
     created: inout [CreatedContainer],
 ) throws -> [String: Any] {
-    let plugIns = try appPlugIns(of: app, owner: bundleID)
-    var record = try registrationRecord(
-        bundleID: bundleID,
-        executable: app + "/" + executable,
-        dataKind: "data",
-        created: &created,
-    )
-    record["ApplicationType"] = registration == .system ? "System" : "User"
-    record["Path"] = app
-    record["IsDeletable"] = true
-    record["IsAdHocSigned"] = true
-    record["LSInstallType"] = 1
-    record["HasMIDBasedSINF"] = 0
-    record["MissingSINF"] = 0
-    record["FamilyID"] = 0
-    record["IsOnDemandInstallCapable"] = 0
-    var bundlePlugIns: [String: Any] = [:]
-    for plugIn in plugIns {
-        var plugInRecord = try registrationRecord(
-            bundleID: plugIn.bundleID,
-            executable: plugIn.path + "/" + plugIn.executable,
-            dataKind: "plugin",
-            created: &created,
-        )
-        plugInRecord["ApplicationType"] = "PluginKitPlugin"
-        plugInRecord["Path"] = plugIn.path
-        plugInRecord["PluginOwnerBundleID"] = bundleID
-        bundlePlugIns[plugIn.bundleID] = plugInRecord
-    }
-    record["_LSBundlePlugins"] = bundlePlugIns
-    let plist = try PropertyListSerialization.data(fromPropertyList: record, format: .xml, options: 0)
-    guard let xml = String(data: plist, encoding: .utf8), icli_register_app_dictionary(xml) else {
-        throw IcliError.failed("LaunchServices refused the app registration")
-    }
-    var registered = try appRegistration(app)
-    guard registered["registered"] as? Bool == true else {
+    let plan = try registrationPlan(app, jbroot: nil, type: registration, deletable: true)
+    guard try registerPlan(plan, created: &created) != nil else {
         throw IcliError.failed("LaunchServices did not list the app after registration: \(app)")
     }
-    registered["data_container"] = record["Container"]
-    registered["containerized"] = record["IsContainerized"]
+    var registered = try appRegistration(app)
+    let dataContainer = try container("data", plan.app.dataContainerID, create: false)["path"]
+    registered["data_container"] = dataContainer
+    registered["containerized"] = plan.app.containerized
     let listed = Set(registered["plugins"] as? [String] ?? [])
-    registered["plugins"] = plugIns.map(\.bundleID)
-    registered["unregistered_plugins"] = plugIns.map(\.bundleID).filter { !listed.contains($0) }
+    registered["plugins"] = plan.plugIns.map(\.bundleID)
+    registered["unregistered_plugins"] = plan.plugIns.map(\.bundleID).filter { !listed.contains($0) }
     return registered
 }
 
@@ -292,13 +191,7 @@ public func installIPAInContainer(
             throw IcliError.failed("could not mark the app container as installed by icli")
         }
         try fixPermissions(target)
-        let record = try registerContainerApp(
-            target,
-            bundleID: bundleID,
-            executable: staged.executable,
-            registration: registration,
-            created: &created,
-        )
+        let record = try registerContainerApp(target, registration: registration, created: &created)
         try? manager.removeItem(atPath: backup)
         return [
             "bundle_id": bundleID,
@@ -318,14 +211,11 @@ public func installIPAInContainer(
         }
         try? manager.removeItem(atPath: target)
         if let previous, manager.fileExists(atPath: backup),
-           (try? manager.moveItem(atPath: backup, toPath: previous)) != nil,
-           let executable = NSDictionary(contentsOfFile: previous + "/Info.plist")?["CFBundleExecutable"] as? String
+           (try? manager.moveItem(atPath: backup, toPath: previous)) != nil
         {
             var ignored: [CreatedContainer] = []
             _ = try? registerContainerApp(
                 previous,
-                bundleID: bundleID,
-                executable: executable,
                 registration: previousType == "System" ? .system : .user,
                 created: &ignored,
             )
