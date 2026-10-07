@@ -111,7 +111,7 @@ func installIPA(_ path: String) throws -> [String: Any] {
     do {
         try manager.moveItem(atPath: source, toPath: target)
         try manager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: target + "/" + executable)
-        guard icli_register_app(target) else { throw IcliError.failed("installed app could not be registered") }
+        _ = try registerApp(target)
         try JSONSerialization.data(withJSONObject: ["bundle_id": bundleID, "path": target])
             .write(to: URL(fileURLWithPath: receipt), options: .atomic)
     } catch {
@@ -120,7 +120,7 @@ func installIPA(_ path: String) throws -> [String: Any] {
         if upgrading {
             do {
                 try manager.moveItem(atPath: backup, toPath: target)
-                _ = icli_register_app(target)
+                _ = try? registerApp(target)
             } catch let restoreError {
                 keepStage = true
                 throw IcliError.failed(

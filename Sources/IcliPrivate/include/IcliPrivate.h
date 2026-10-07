@@ -58,7 +58,6 @@ bool icli_open_url_in_app(const char *url, const char *bundle_id);
 /// Live application processes reported by RunningBoard, as a JSON object.
 char *icli_runningboard_apps_json(void);
 bool icli_uninstall_app(const char *bundle_id);
-bool icli_register_app(const char *path);
 bool icli_unregister_app(const char *path);
 char *icli_app_handlers_json(const char *url_or_scheme);
 
@@ -96,9 +95,17 @@ char *icli_capture_packets_json(
 char *icli_tar_entry_text(const char *path, const char *entry_name);
 int icli_compare_debian_versions(const char *left, const char *right, int *comparison);
 
-char *icli_apps_refresh_json(const char *directory);
 char *icli_apps_unregister_directory_json(const char *directory);
 char *icli_app_registration_json(const char *path);
+/// Every app LaunchServices lists, as an XML property list array: the bundle
+/// identifier, normalized path, and what a uicache registration sets
+/// (versions, type, signer, containerization, data container, environment,
+/// group identifiers, entitlements, settings bundle), with each app's plug-ins
+/// under "plugins". NULL when LaunchServices cannot be asked.
+char *icli_app_records_plist(void);
+/// A bundle path in the form LaunchServices reports it: symlinks in every
+/// existing component resolved, /private/var as /var.
+char *icli_normalized_app_path(const char *path);
 
 /// A MobileContainerManager container; kind is app, data, plugin, group or
 /// system-group. Returns {"path", "existed"}, {"missing": true} when create is

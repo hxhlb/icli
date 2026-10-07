@@ -161,19 +161,6 @@ public func appRegistration(_ path: String) throws -> [String: Any] {
     try decodeBridgeJSON(takeCString(icli_app_registration_json(path)), "application response")
 }
 
-public func registerApp(_ path: String) throws -> [String: Any] {
-    guard FileManager.default.fileExists(atPath: path + "/Info.plist") else {
-        throw IcliError.failed("not an app bundle: \(path)")
-    }
-    guard icli_register_app(path) else { throw IcliError.failed("register failed: \(path)") }
-    var record = try appRegistration(path)
-    guard record["registered"] as? Bool == true else {
-        throw IcliError.failed("LaunchServices did not list the app after registration: \(path)")
-    }
-    record["path"] = path
-    return record
-}
-
 public func unregisterApp(_ path: String, force: Bool) throws -> [String: Any] {
     if !force {
         throw IcliError.forceRequired("unregister \(path)")
@@ -187,24 +174,6 @@ public func unregisterApp(_ path: String, force: Bool) throws -> [String: Any] {
         throw IcliError.failed("LaunchServices still lists the app after unregistration: \(path)")
     }
     return ["unregistered": true, "path": path, "bundle_id": before["bundle_id"] ?? ""]
-}
-
-/// Registers new, moved or updated bundles in a directory (default: the
-/// bootstrap's /Applications), skips unchanged apps, and drops missing bundles'
-/// registrations. An app is updated when its `CFBundleVersion` no longer
-/// matches its LaunchServices record.
-public func refreshApps(directory: String?) throws -> [String: Any] {
-    let root = directory ?? JailbreakRoot.current.jbrootPath("/Applications")
-    let result = try decodeBridgeJSON(takeCString(icli_apps_refresh_json(root)), "application response")
-    let failed = result["failed"] as? [String] ?? []
-    let unverified = result["unverified"] as? [String] ?? []
-    guard failed.isEmpty, unverified.isEmpty else {
-        throw IcliError.commandFailed(result.merging([
-            "error": "refresh_incomplete",
-            "message": "\(failed.count) failed, \(unverified.count) unverified",
-        ]) { $1 })
-    }
-    return result
 }
 
 public func unregisterAppsInDirectory(_ directory: String, force: Bool) throws -> [String: Any] {

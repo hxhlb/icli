@@ -306,7 +306,7 @@ private func registerBundles(_ paths: [String]) -> ([String], [String]) {
         guard FileManager.default.fileExists(atPath: bundle + "/Info.plist"),
               FileManager.default.fileExists(atPath: bundle, isDirectory: &isDirectory),
               isDirectory.boolValue else { continue }
-        if icli_register_app(bundle), (try? appRegistration(bundle))?["registered"] as? Bool == true {
+        if (try? registerApp(bundle)) != nil {
             registered.append(bundle)
         } else {
             failed.append(bundle)
