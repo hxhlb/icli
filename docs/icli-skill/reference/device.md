@@ -2,7 +2,7 @@
 
 | Command | Purpose | Key flags | Root | Screen |
 | --- | --- | --- | --- | --- |
-| `device info` | Model, iOS, battery, storage, memory, jailbreak layout | | no | any |
+| `device info` | Model, iOS, battery, storage, memory, bootstrap layout | | no | any |
 | `device jetsam` | Jetsam bands, jetsam property lists, memory pressure | | usually (without root, `priorities_error` replaces the band list) | any |
 | `device brightness get` | Brightness 0–1 | | no | unlocked |
 | `device brightness set <value>` | Set brightness (0–1) | | no | unlocked |
@@ -29,7 +29,7 @@ Reboot notes:
 
 - SSH usually drops before the JSON arrives, so a disconnect does not prove that the reboot happened. Reconnect and compare `device info` with the values from before.
 - After a userspace restart the system and UI processes are new, while the kernel boot time and boot session UUID stay the same. A full reboot changes both.
-- A full reboot clears `/tmp`. On a semi-untethered jailbreak it can also leave the device without SSH until someone re-jailbreaks it, so run it only when you are explicitly told to.
+- A full reboot clears `/tmp`. On semi-untethered custom firmware it can also leave the device without SSH until someone applies the firmware again, so run it only when you are explicitly told to.
 
 Developer Mode notes:
 

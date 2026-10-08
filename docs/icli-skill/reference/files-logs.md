@@ -1,6 +1,6 @@
 # Files and logs: fs, log
 
-All paths are physical device paths. On RootHide, the SSH shell's `/` is the jailbreak root. See the RootHide note in [SKILL.md](../SKILL.md).
+All paths are physical device paths. On RootHide, the SSH shell's `/` is the bootstrap root. See the RootHide note in [SKILL.md](../SKILL.md).
 
 ## fs
 

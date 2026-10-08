@@ -2,7 +2,7 @@
 
 ## svc (launchd)
 
-Label commands take the plist's `Label` value without a domain prefix, for example `com.example.service`. Path commands take one or more plist files or directories. Mutating commands need root and the launchd privileges the jailbreak grants. Without them they fail with `requires root (launchd status …)`. Every svc command also runs while the device is locked.
+Label commands take the plist's `Label` value without a domain prefix, for example `com.example.service`. Path commands take one or more plist files or directories. Mutating commands need root and the launchd privileges that the custom firmware grants. Without them they fail with `requires root (launchd status …)`. Every svc command also runs while the device is locked.
 
 On RootHide, `bootstrap` and `load` rewrite each plist in place before handing it to launchd, as RootHide's `launchctl` does: the program (`Program` or `ProgramArguments[0]`) and the other paths launchd itself opens get the jbroot in front, `/rootfs/x` becomes the system's `/x`, an earlier `.jbroot-…` is replaced with the current one, and `__Patched` is set. Plists outside the jbroot, a program under `/rootfs/`, and a plist already patched for the current root are left alone. `bootout` and `unload` never rewrite, and rootless and rootful use plists as written. Check a plist with `svc paths` before loading it.
 
@@ -35,7 +35,7 @@ On RootHide, `bootstrap` and `load` rewrite each plist in place before handing i
 | `prefs write <domain> <key> <value>` | Write through cfprefsd, synchronize, return the value read back | `--type string\|int\|float\|bool\|date\|data\|json`, `--user`, `--notify <darwin-notification>` | no |
 | `prefs delete <domain> <key>` | Remove the key and confirm it is gone; `removed` is false if it was not set | `--user`, `--notify` | no |
 
-Types on read are `string`, `int`, `float`, `bool`, `date` (ISO-8601), `data` (Base64), `array` and `dictionary`. On write, `date` takes ISO-8601 or epoch seconds, `data` takes Base64, `json` takes an array or object (no nulls). Put `--` before a negative number: `icli prefs write --type int <domain> <key> -- -7`. cfprefsd writes the plist to disk a few seconds after the command returns. On RootHide, a jailbroken process's non-Apple domains are kept in the jbroot (the shell's `/var/mobile/Library/Preferences`), while `com.apple.*` domains use the system's own file.
+Types on read are `string`, `int`, `float`, `bool`, `date` (ISO-8601), `data` (Base64), `array` and `dictionary`. On write, `date` takes ISO-8601 or epoch seconds, `data` takes Base64, `json` takes an array or object (no nulls). Put `--` before a negative number: `icli prefs write --type int <domain> <key> -- -7`. cfprefsd writes the plist to disk a few seconds after the command returns. On RootHide, the non-Apple domains of a process running inside the bootstrap are kept in the jbroot (the shell's `/var/mobile/Library/Preferences`), while `com.apple.*` domains use the system's own file.
 
 ## account, env, proc
 

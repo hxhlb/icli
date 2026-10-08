@@ -67,7 +67,7 @@ Every `icli` command is a thin layer over a public IcliKit function, so a long-r
 | Raw input | `touch(_:x:y:normalized:)`, `touchSequence(_:normalized:)` with `TouchEvent`, `hidEvent(page:usage:down:)`, `hidPress(page:usage:)`. `TouchPhase` is `down`, `move` or `up` (UITouchPhase 0, 1 and 3). |
 | Container installs | `installIPAInContainer(_:registration:)` or `installPackage(_:container:registration:)`, with `AppRegistrationType`. `installIPAInContainer(_:registration:prepareApp:)` lets an integrator prepare the validated temporary app bundle before container installation. `uninstallApp(_:force:)` removes container apps icli installed. |
 
-A call a device can't support throws `IcliError.unavailable` and leaves the device as it was. For example, a jailbroken device won't launch an app installed in a container unless the app is signed in a way CoreTrust accepts. The CLI refuses UI input while the device is locked. A library caller has to make that check itself.
+A call a device can't support throws `IcliError.unavailable` and leaves the device as it was. For example, a device running custom firmware won't launch an app installed in a container unless the app is signed in a way CoreTrust accepts. The CLI refuses UI input while the device is locked. A library caller has to make that check itself.
 
 ## The IcliSystem product
 
@@ -98,7 +98,7 @@ Also `serviceStatus(_:)`, `printService(_:)`, `servicePlistPaths(_:)` (what `svc
 | Not linked | UIKit, IOKit, Vision, AVFoundation, CoreGraphics, Security, ArchiveKit |
 | Builds for | iOS device, iOS simulator (`arm64-apple-ios15.0-simulator`) and Mac Catalyst (`arm64-apple-ios15.0-macabi`) |
 
-Off a jailbroken device the calls fail cleanly rather than crashing: every private symbol it names is exported by libSystem in the iPhoneOS, iPhoneSimulator and macOS SDKs, so nothing is link-guarded, and a missing class, service or bootstrap turns into an empty list, an `IcliError` or an error field. Simulator and Catalyst runtime behaviour is compile-verified only; `listApps()` there returns whatever LaunchServices answers, which on macOS is usually nothing.
+Anywhere other than a device running custom firmware, the calls fail cleanly rather than crashing: every private symbol it names is exported by libSystem in the iPhoneOS, iPhoneSimulator and macOS SDKs, so nothing is link-guarded, and a missing class, service or bootstrap turns into an empty list, an `IcliError` or an error field. Simulator and Catalyst runtime behaviour is compile-verified only; `listApps()` there returns whatever LaunchServices answers, which on macOS is usually nothing.
 
 ### Entitlements the host needs
 

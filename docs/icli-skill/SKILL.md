@@ -1,6 +1,6 @@
 ---
 name: icli
-description: Command map for icli, the on-device CLI that controls and inspects a jailbroken iPhone or iPad. Use it when you drive or inspect such a device over SSH: tapping, typing, reading the accessibility tree, screenshots and OCR, launching or installing apps, files, logs, Debian packages, launchd services, reboots and device settings. It maps an intent to the exact `icli` command, with the sudo and screen-state rules for each command.
+description: Command map for icli, the on-device CLI that controls and inspects an iPhone or iPad running custom firmware. Use it when you drive or inspect such a device over SSH: tapping, typing, reading the accessibility tree, screenshots and OCR, launching or installing apps, files, logs, Debian packages, launchd services, reboots and device settings. It maps an intent to the exact `icli` command, with the sudo and screen-state rules for each command.
 ---
 
 # icli command map
@@ -41,7 +41,7 @@ Per-group detail: [interaction](reference/interaction.md) (screen, ui, input, bu
 | Take a screenshot | `icli screen shot --output /tmp/s.jpg` or `--base64` |
 | Read the text on screen | `icli screen ocr` |
 | Get a screenshot, OCR and elements together | `icli screen describe` |
-| Get the model, iOS version, battery and jailbreak | `icli device info` |
+| Get the model, iOS version, battery and bootstrap layout | `icli device info` |
 | Get brightness, volume and orientation | `icli device brightness get` / `volume get` / `rotation get` |
 | Simulate the GPS location, then stop | `icli location set 37.3349 -122.009` / `icli location clear` |
 | Read the current location | `icli location get` (check `fresh` and `simulated`) |
@@ -61,7 +61,7 @@ Per-group detail: [interaction](reference/interaction.md) (screen, ui, input, bu
 | Check a launchd service | `icli svc status <label>` / `icli svc print <label>` |
 | Start or stop a service | `sudo icli svc start <label>` / `sudo icli svc stop <label>` |
 | List processes | `icli proc list --filter <text>` |
-| Get jailbreak paths (jbroot, layout) | `icli env info` |
+| Get bootstrap paths (jbroot, layout) | `icli env info` |
 | Capture packets | `sudo icli net capture --seconds 5 --filter 'tcp port 443'` |
 | Run the self-tests | `icli tests --expect-layout roothide` |
 | Restart userspace | `sudo icli device reboot --userspace --force` |
@@ -73,7 +73,7 @@ Per-group detail: [interaction](reference/interaction.md) (screen, ui, input, bu
 - **Locked device**: see the Screen column. Most interactive and many read commands need the device unlocked with the screen on. When you get exit 2, run `icli button wake`. If `screen info` still shows `locked: true`, a person has to unlock the device.
 - **Destructive commands need `--force`**: `app kill`, `app unregister`, `app unregister-dir`, `app uninstall --package`, `fs rm`, `sec keychain delete` and `device reboot` refuse to run without it and return `force_required`.
 - **Coordinates** are UI points in the orientation shown on screen. The origin is the top-left corner as the user sees it. `screen info` gives the current `width`, `height` and `orientation`; an iPad in landscape reports a landscape width. Frames from `ui tree` and boxes from `screen ocr` use the same space, so you can pass the centre of a frame straight to `screen tap`.
-- **Paths are physical device paths.** On RootHide, the SSH shell, `scp` and bootstrap tools treat the jailbreak root as `/` and reach the real filesystem under `/rootfs`. A file that icli writes to `/tmp/a.jpg` is `/rootfs/tmp/a.jpg` in that shell. A file you `scp` to `/tmp/x.deb` is `<jbroot>/tmp/x.deb` for icli; `icli env info` reports `jbroot`. On rootless, both views agree and the bootstrap lives under `/var/jb`.
+- **Paths are physical device paths.** On RootHide, the SSH shell, `scp` and bootstrap tools treat the bootstrap root as `/` and reach the real filesystem under `/rootfs`. A file that icli writes to `/tmp/a.jpg` is `/rootfs/tmp/a.jpg` in that shell. A file you `scp` to `/tmp/x.deb` is `<jbroot>/tmp/x.deb` for icli; `icli env info` reports `jbroot`. On rootless, both views agree and the bootstrap lives under `/var/jb`.
 - **Not a shell**: icli never spawns processes. There is no command to run arbitrary programs. Use the SSH shell for that.
 
 ## Workflows
@@ -115,4 +115,4 @@ sudo icli app uninstall <bundle-id> --force
 
 **Recover from a stuck state**
 
-`icli button home` returns to the home screen. `icli app kill <id> --force` quits the app. `icli sb respring` restarts SpringBoard. `sudo icli device reboot --userspace --force` restarts userspace; SSH drops, so reconnect and check `device info`. A full reboot (`device reboot --force` without `--userspace`) can leave the device without SSH until it is re-jailbroken, so use it only when you are told to.
+`icli button home` returns to the home screen. `icli app kill <id> --force` quits the app. `icli sb respring` restarts SpringBoard. `sudo icli device reboot --userspace --force` restarts userspace; SSH drops, so reconnect and check `device info`. A full reboot (`device reboot --force` without `--userspace`) can leave the device without SSH until the custom firmware is applied again, so use it only when you are told to.

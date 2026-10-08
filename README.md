@@ -2,7 +2,7 @@
 
 Control your iPhone from the command line. Tap and swipe, enter text, inspect accessibility elements, capture screenshots, and read on-screen text, with JSON output for scripts and automation.
 
-icli runs on the device itself. Use it in a device terminal or over SSH from your Mac. It requires an arm64 device running iOS 16 or later with a compatible jailbreak bootstrap.
+icli runs on the device itself. Use it in a device terminal or over SSH from your Mac. It requires an arm64 device running iOS 16 or later on custom firmware with a compatible bootstrap.
 
 icli is a single, self-contained executable. It performs its work in-process using iOS frameworks and a statically linked archive library, without spawning subprocesses or invoking bootstrap tools. No additional runtime packages are required. `icli env` reports the detected environment, `spawns_processes: false`, and an empty `external_tools_used` object.
 
@@ -64,7 +64,7 @@ OCR uses Apple's Vision framework. If system text recognition is unavailable, th
 
 Run these commands on the device or in its SSH session. Unlock the device and keep the screen on before interacting with an app. Use `icli --help` or append `--help` to a command to see its options.
 
-icli reads and writes real filesystem paths. On RootHide, the bootstrap's shell, `scp`, and other tools treat `/` as the jailbreak root and reach the real filesystem under `/rootfs`. A file that icli writes to `/tmp/screen.jpg` therefore appears in the shell as `/rootfs/tmp/screen.jpg`. To pass a file from the shell to icli, prefix its path with the `jbroot` value that `icli env` reports.
+icli reads and writes real filesystem paths. On RootHide, the bootstrap's shell, `scp`, and other tools treat `/` as the bootstrap root and reach the real filesystem under `/rootfs`. A file that icli writes to `/tmp/screen.jpg` therefore appears in the shell as `/rootfs/tmp/screen.jpg`. To pass a file from the shell to icli, prefix its path with the `jbroot` value that `icli env` reports.
 
 ### Inspect and Interact
 
@@ -147,7 +147,7 @@ sudo icli app install /tmp/example.ipa
 sudo icli app install /tmp/example.ipa --container
 ```
 
-DEB operations read archives and update the bootstrap's dpkg database directly. IPA installation validates archive paths and app metadata, preserves the app's signature, and requires the bootstrap to support running it. This IPA installation path does not overwrite apps installed outside icli. With `--container`, the app is installed into its own app container under `/var/containers/Bundle/Application`, with a data container, and registered as a User app (`--registration system` for a System app); reinstalling upgrades it in place and `app uninstall --force` removes both containers. icli does not re-sign apps, so the IPA must already carry a signature the device accepts; on a stock-kernel jailbreak, CoreTrust rejects ad-hoc signatures for apps in a container. Use `icli app uninstall --help` for removal options.
+DEB operations read archives and update the bootstrap's dpkg database directly. IPA installation validates archive paths and app metadata, preserves the app's signature, and requires the bootstrap to support running it. This IPA installation path does not overwrite apps installed outside icli. With `--container`, the app is installed into its own app container under `/var/containers/Bundle/Application`, with a data container, and registered as a User app (`--registration system` for a System app); reinstalling upgrades it in place and `app uninstall --force` removes both containers. icli does not re-sign apps, so the IPA must already carry a signature the device accepts; on custom firmware with a stock kernel, CoreTrust rejects ad-hoc signatures for apps in a container. Use `icli app uninstall --help` for removal options.
 
 `sudo icli pkg install /tmp/example.deb` installs a local archive and checks architecture and installed dependencies; installing the same version reinstalls it. Package identifiers and repository downloads are not supported. `pkg info`, `pkg extract`, `pkg status`, and `pkg compare` expose metadata, extraction, installed state, and Debian version comparison. `pkg remove` keeps configuration files unless `--purge` is supplied. `pkg repos` and `pkg add-repo` inspect and edit repository source files.
 
